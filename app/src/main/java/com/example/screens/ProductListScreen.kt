@@ -16,8 +16,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
@@ -45,7 +45,6 @@ import com.example.components.WavesFAB
 import com.example.components.WavesHeader
 import com.example.components.WavesTextField
 import com.example.data.SampleData
-import com.example.ui.theme.AccentCyan
 import com.example.ui.theme.BackgroundColor
 import com.example.ui.theme.EmeraldInk
 import com.example.ui.theme.OnPrimary
@@ -59,6 +58,7 @@ fun ProductListScreen(
     onNavigateToEditProduct: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     var selectedFilter by remember { mutableStateOf("All") }
     var searchQuery by remember { mutableStateOf("") }
     var isSearchVisible by remember { mutableStateOf(false) }
@@ -70,8 +70,10 @@ fun ProductListScreen(
             "Archived" -> product.isArchived
             else -> true
         }
-        val matchesSearch = product.name.contains(searchQuery, ignoreCase = true) ||
-                product.sku.contains(searchQuery, ignoreCase = true)
+        val matchesSearch = searchQuery.isBlank() ||
+                product.name.contains(searchQuery, ignoreCase = true) ||
+                (product.sku?.contains(searchQuery, ignoreCase = true) ?: false) ||
+                (product.description?.contains(searchQuery, ignoreCase = true) ?: false)
         matchesFilter && matchesSearch
     }
 
@@ -119,7 +121,9 @@ fun ProductListScreen(
                 .padding(innerPadding)
         ) {
             if (isSearchVisible) {
-                Box(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
+                Box(
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                ) {
                     WavesTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
@@ -127,6 +131,18 @@ fun ProductListScreen(
                         placeholder = "Product name or SKU...",
                         leadingIcon = Icons.Filled.Search
                     )
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(
+                            onClick = { searchQuery = "" },
+                            modifier = Modifier.align(Alignment.CenterEnd)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = "Clear",
+                                tint = TextSecondary
+                            )
+                        }
+                    }
                 }
             }
 
@@ -147,10 +163,18 @@ fun ProductListScreen(
             }
 
             if (filteredProducts.isEmpty()) {
+                val emptyMessage = when {
+                    searchQuery.isNotBlank() ->
+                        "No products match '$searchQuery'."
+                    selectedFilter != "All" ->
+                        "No products with status '$selectedFilter'."
+                    else ->
+                        "Add recurring services or items to insert into invoices quickly."
+                }
                 EmptyStateView(
                     icon = Icons.Filled.Inventory2,
                     title = "No products found",
-                    message = "Add recurring services or items to insert into invoices quickly.",
+                    message = emptyMessage,
                     buttonText = "+ Add Product",
                     onButtonClick = onNavigateToAddProduct
                 )
@@ -193,15 +217,22 @@ fun ProductListScreen(
                                         fontWeight = FontWeight.Bold,
                                         color = TextPrimary
                                     )
-                                    Text(
-                                        text = product.description,
-                                        fontSize = 12.sp,
-                                        color = TextSecondary,
-                                        maxLines = 1
-                                    )
+                                    if (!product.description.isNullOrBlank()) {
+                                        Text(
+                                            text = product.description,
+                                            fontSize = 12.sp,
+                                            color = TextSecondary,
+                                            maxLines = 1
+                                        )
+                                    }
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
-                                        text = "SKU: ${product.sku} · Tax: ${product.taxRate.toInt()}%",
+                                        text = buildString {
+                                            append("SKU: ")
+                                            append(product.sku ?: "—")
+                                            append(" · Tax: ")
+                                            append("${product.taxRate.toInt()}%")
+                                        },
                                         fontSize = 11.sp,
                                         color = TextSecondary
                                     )
@@ -229,7 +260,7 @@ fun ProductListScreen(
                     }
 
                     item {
-                        Spacer(modifier = Modifier.height(72.dp))
+                        Spacer(modifier = Modifier.height(88.dp))
                     }
                 }
             }

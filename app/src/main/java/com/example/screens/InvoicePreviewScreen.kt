@@ -65,8 +65,10 @@ fun InvoicePreviewScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val invoice = SampleData.invoices.find { it.id == invoiceId } ?: SampleData.invoices.first()
+    val invoice = SampleData.invoices.find { it.id == invoiceId }
+        ?: SampleData.invoices.first()
     val business = SampleData.defaultBusiness
+    val client = SampleData.clients.find { it.id == invoice.clientId }
 
     Scaffold(
         topBar = {
@@ -100,12 +102,19 @@ fun InvoicePreviewScreen(
         ) {
             Spacer(modifier = Modifier.height(6.dp))
 
-            // White PDF mockup card
+            // ===== PDF MOCKUP CARD =====
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .shadow(elevation = 6.dp, shape = RoundedCornerShape(8.dp), spotColor = Color(0x33000000))
-                    .border(BorderStroke(1.dp, BorderGray), RoundedCornerShape(8.dp)),
+                    .shadow(
+                        elevation = 6.dp,
+                        shape = RoundedCornerShape(8.dp),
+                        spotColor = Color(0x33000000)
+                    )
+                    .border(
+                        BorderStroke(1.dp, BorderGray),
+                        RoundedCornerShape(8.dp)
+                    ),
                 shape = RoundedCornerShape(8.dp),
                 color = SurfaceColor
             ) {
@@ -114,7 +123,7 @@ fun InvoicePreviewScreen(
                         .fillMaxWidth()
                         .padding(18.dp)
                 ) {
-                    // Header of PDF: Logo + Business Info
+                    // ===== HEADER =====
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -136,33 +145,98 @@ fun InvoicePreviewScreen(
                             }
                             Spacer(modifier = Modifier.width(10.dp))
                             Column {
-                                Text(business.name, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = EmeraldInk)
-                                Text(business.addressLine1, fontSize = 11.sp, color = TextSecondary)
-                                Text("${business.city}, ${business.country}", fontSize = 11.sp, color = TextSecondary)
-                                Text(business.phone, fontSize = 11.sp, color = TextSecondary)
+                                Text(
+                                    business.name,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = EmeraldInk
+                                )
+                                Text(
+                                    business.addressLine1,
+                                    fontSize = 11.sp,
+                                    color = TextSecondary
+                                )
+                                if (business.addressLine2.isNotBlank()) {
+                                    Text(
+                                        business.addressLine2,
+                                        fontSize = 11.sp,
+                                        color = TextSecondary
+                                    )
+                                }
+                                Text(
+                                    "${business.city}, ${business.country}",
+                                    fontSize = 11.sp,
+                                    color = TextSecondary
+                                )
+                                Text(
+                                    business.phone,
+                                    fontSize = 11.sp,
+                                    color = TextSecondary
+                                )
                             }
                         }
 
                         Column(horizontalAlignment = Alignment.End) {
-                            Text("INVOICE", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = EmeraldInk)
-                            Text("#${invoice.id}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                            Text(
+                                "INVOICE",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = EmeraldInk
+                            )
+                            Text(
+                                "#${invoice.id}",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text("Date: ${invoice.issueDate}", fontSize = 10.sp, color = TextSecondary)
-                            Text("Due: ${invoice.dueDate}", fontSize = 10.sp, color = TextSecondary)
+                            Text(
+                                "Date: ${invoice.issueDate}",
+                                fontSize = 10.sp,
+                                color = TextSecondary
+                            )
+                            Text(
+                                "Due: ${invoice.dueDate}",
+                                fontSize = 10.sp,
+                                color = TextSecondary
+                            )
                         }
                     }
 
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = BorderGray)
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 12.dp),
+                        color = BorderGray
+                    )
 
-                    // BILL TO section with client details
-                    Text("BILL TO:", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-                    Text(invoice.clientName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                    Text(invoice.clientEmail ?: "Client Email: N/A", fontSize = 11.sp, color = TextSecondary)
-                    Text("Mumbai, India", fontSize = 11.sp, color = TextSecondary)
+                    // ===== BILL TO =====
+                    Text(
+                        "BILL TO:",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextSecondary
+                    )
+                    Text(
+                        invoice.clientName,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                    Text(
+                        invoice.clientEmail ?: "Email not provided",
+                        fontSize = 11.sp,
+                        color = TextSecondary
+                    )
+                    if (client != null && client.city.isNotBlank()) {
+                        Text(
+                            "${client.city}${if (client.country.isNotBlank()) ", ${client.country}" else ""}",
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Items table
+                    // ===== ITEMS TABLE HEADER =====
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         color = Color(0xFFF1F5F9),
@@ -174,13 +248,41 @@ fun InvoicePreviewScreen(
                                 .padding(horizontal = 8.dp, vertical = 6.dp),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("ITEM", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.weight(2f))
-                            Text("QTY", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.weight(0.7f), textAlign = TextAlign.Center)
-                            Text("RATE", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
-                            Text("AMOUNT", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.weight(1.2f), textAlign = TextAlign.End)
+                            Text(
+                                "ITEM",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary,
+                                modifier = Modifier.weight(2f)
+                            )
+                            Text(
+                                "QTY",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary,
+                                modifier = Modifier.weight(0.7f),
+                                textAlign = TextAlign.Center
+                            )
+                            Text(
+                                "RATE",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary,
+                                modifier = Modifier.weight(1f),
+                                textAlign = TextAlign.End
+                            )
+                            Text(
+                                "AMOUNT",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary,
+                                modifier = Modifier.weight(1.2f),
+                                textAlign = TextAlign.End
+                            )
                         }
                     }
 
+                    // ===== ITEMS ROWS =====
                     invoice.items.forEach { item ->
                         Row(
                             modifier = Modifier
@@ -190,48 +292,119 @@ fun InvoicePreviewScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(2f)) {
-                                Text(item.name, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
-                                Text("Tax: ${item.taxRate.toInt()}%", fontSize = 10.sp, color = TextSecondary)
+                                Text(
+                                    item.name,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    "Tax: ${item.taxRate.toInt()}%",
+                                    fontSize = 10.sp,
+                                    color = TextSecondary
+                                )
                             }
-                            Text("${item.quantity}", fontSize = 12.sp, color = TextPrimary, modifier = Modifier.weight(0.7f), textAlign = TextAlign.Center)
-                            Text(SampleData.formatCurrency(item.unitPrice), fontSize = 12.sp, color = TextPrimary, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
-                            Text(SampleData.formatCurrency(item.total), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary, modifier = Modifier.weight(1.2f), textAlign = TextAlign.End)
+                            Text(
+                                "${item.quantity.toInt()}",
+                                fontSize = 12.sp,
+                                color = TextPrimary,
+                                modifier = Modifier.weight(0.7f),
+                                textAlign = TextAlign.Center
+                            )
+                            Text(
+                                SampleData.formatCurrency(item.unitPrice),
+                                fontSize = 12.sp,
+                                color = TextPrimary,
+                                modifier = Modifier.weight(1f),
+                                textAlign = TextAlign.End
+                            )
+                            Text(
+                                SampleData.formatCurrency(item.total),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary,
+                                modifier = Modifier.weight(1.2f),
+                                textAlign = TextAlign.End
+                            )
                         }
                         HorizontalDivider(color = Color(0xFFF1F5F9))
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Subtotal / Tax / TOTAL
+                    // ===== TOTALS =====
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalAlignment = Alignment.End
                     ) {
-                        Row(modifier = Modifier.width(200.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Row(
+                            modifier = Modifier.width(200.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
                             Text("Subtotal:", fontSize = 12.sp, color = TextSecondary)
-                            Text(SampleData.formatCurrency(invoice.subtotal), fontSize = 12.sp, color = TextPrimary)
+                            Text(
+                                SampleData.formatCurrency(invoice.subtotal),
+                                fontSize = 12.sp,
+                                color = TextPrimary
+                            )
                         }
-                        Row(modifier = Modifier.width(200.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Row(
+                            modifier = Modifier.width(200.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
                             Text("Tax:", fontSize = 12.sp, color = TextSecondary)
-                            Text(SampleData.formatCurrency(invoice.taxAmount), fontSize = 12.sp, color = TextPrimary)
+                            Text(
+                                SampleData.formatCurrency(invoice.taxAmount),
+                                fontSize = 12.sp,
+                                color = TextPrimary
+                            )
                         }
                         Spacer(modifier = Modifier.height(4.dp))
-                        Row(modifier = Modifier.width(200.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("TOTAL:", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                            Text(SampleData.formatCurrency(invoice.grandTotal), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = EmeraldInk)
+                        Row(
+                            modifier = Modifier.width(200.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                "TOTAL:",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                SampleData.formatCurrency(invoice.grandTotal),
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = EmeraldInk
+                            )
                         }
                     }
 
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = BorderGray)
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 12.dp),
+                        color = BorderGray
+                    )
 
-                    // Bank details
-                    Text("PAYMENT DETAILS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-                    Text("Bank: ${business.bankName} · A/C: ${business.accountNumber}", fontSize = 11.sp, color = TextPrimary)
-                    Text("IFSC: ${business.ifscCode} · UPI: ${business.upiId}", fontSize = 11.sp, color = TextPrimary)
+                    // ===== BANK DETAILS =====
+                    Text(
+                        "PAYMENT DETAILS",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextSecondary
+                    )
+                    Text(
+                        "Bank: ${business.bankName} · A/C: ${business.accountNumber}",
+                        fontSize = 11.sp,
+                        color = TextPrimary
+                    )
+                    Text(
+                        "IFSC: ${business.ifscCode} · UPI: ${business.upiId}",
+                        fontSize = 11.sp,
+                        color = TextPrimary
+                    )
 
                     Spacer(modifier = Modifier.height(18.dp))
 
-                    // Footer "Made with WAVES" (faded)
+                    // ===== FOOTER =====
                     Text(
                         text = "Made with WAVES — Free Invoice & Accounting",
                         fontSize = 11.sp,
@@ -242,13 +415,12 @@ fun InvoicePreviewScreen(
                 }
             }
 
-            // Buttons below mockup:
+            // ===== ACTION BUTTONS =====
             WavesPrimaryButton(
-                text = "⬇ DOWNLOAD PDF",
+                text = "DOWNLOAD PDF",
                 icon = Icons.Filled.Download,
                 onClick = {
                     showDemoToast(context, "PDF saved to Downloads folder!")
-                    onNavigateToInvoiceDetail(invoice.id)
                 }
             )
 
@@ -257,14 +429,14 @@ fun InvoicePreviewScreen(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 WavesSecondaryButton(
-                    text = "📤 SHARE",
+                    text = "SHARE",
                     icon = Icons.Filled.Share,
                     onClick = { showDemoToast(context, "Sharing PDF with client...") },
                     modifier = Modifier.weight(1f)
                 )
 
                 WavesSecondaryButton(
-                    text = "🔗 COPY LINK",
+                    text = "COPY LINK",
                     icon = Icons.Filled.Link,
                     onClick = { showDemoToast(context, "Link copied to clipboard!") },
                     modifier = Modifier.weight(1f)
@@ -272,9 +444,11 @@ fun InvoicePreviewScreen(
             }
 
             WavesSecondaryButton(
-                text = "🎬 Watch ad to remove watermark",
+                text = "Watch ad to remove watermark",
                 icon = Icons.Filled.PlayCircle,
-                onClick = { showDemoToast(context, "Ad completed! Watermark removed from PDF") }
+                onClick = {
+                    showDemoToast(context, "Ad completed! Watermark removed from PDF")
+                }
             )
 
             Spacer(modifier = Modifier.height(24.dp))

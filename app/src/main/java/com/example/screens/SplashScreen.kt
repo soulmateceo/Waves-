@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -22,17 +21,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
-import com.example.ui.theme.AccentCyan
 import com.example.ui.theme.BackgroundColor
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
@@ -75,27 +70,14 @@ fun SplashScreen(
                 .scale(scale)
                 .alpha(alpha)
         ) {
-            // Centered logo circle 200dp with cyan-to-blue gradient
-            Box(
+            // Logo — 160dp, no extra frame
+            Image(
+                painter = painterResource(id = R.drawable.app_logo),
+                contentDescription = "Waves Logo",
                 modifier = Modifier
-                    .size(200.dp)
-                    .clip(CircleShape)
-                    .background(
-                        Brush.linearGradient(
-                            listOf(
-                                AccentCyan,
-                                Color(0xFF0284C7)
-                            )
-                        )
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.app_logo),
-                    contentDescription = "Waves Logo",
-                    modifier = Modifier.size(140.dp)
-                )
-            }
+                    .size(160.dp)
+                    .testTag("splash_logo")
+            )
 
             Spacer(modifier = Modifier.height(28.dp))
 

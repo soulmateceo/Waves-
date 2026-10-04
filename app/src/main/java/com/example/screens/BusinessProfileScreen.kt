@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,9 +21,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -66,7 +62,6 @@ import com.example.ui.theme.EmeraldInk
 import com.example.ui.theme.InputBorderGray
 import com.example.ui.theme.OnPrimary
 import com.example.ui.theme.SurfaceColor
-import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -95,19 +90,23 @@ fun BusinessProfileScreen(
         StateScreen(
             type = StateType.SUCCESS,
             title = "Profile Saved!",
-            message = "Your business profile and settings have been updated.",
+            message = "Your business profile has been updated.",
             primaryButtonText = "DONE",
             onPrimaryClick = onNavigateBack
         )
         return
     }
 
+    // Business info
     var businessName by remember { mutableStateOf(initial.name) }
     var tagline by remember { mutableStateOf(initial.tagline) }
+
+    // Contact
     var email by remember { mutableStateOf(initial.email) }
     var phone by remember { mutableStateOf(initial.phone) }
     var website by remember { mutableStateOf(initial.website) }
 
+    // Address
     var addressLine1 by remember { mutableStateOf(initial.addressLine1) }
     var addressLine2 by remember { mutableStateOf(initial.addressLine2) }
     var city by remember { mutableStateOf(initial.city) }
@@ -116,36 +115,16 @@ fun BusinessProfileScreen(
 
     var country by remember { mutableStateOf(initial.country) }
     var countryDropdownOpen by remember { mutableStateOf(false) }
-    val countries = listOf("India", "USA", "UK", "UAE", "Australia", "Canada", "Germany", "Singapore", "Nigeria", "Kenya", "South Africa", "Brazil")
-
-    var taxLabel by remember { mutableStateOf(initial.taxLabel) }
-    var taxDropdownOpen by remember { mutableStateOf(false) }
-    val taxLabels = listOf("Tax", "VAT", "Sales Tax", "GSTIN", "Custom")
-
-    var taxNumber by remember { mutableStateOf(initial.taxNumber) }
-    var defaultTaxRate by remember { mutableStateOf(initial.defaultTaxRate.toString()) }
-    var pricesIncludeTax by remember { mutableStateOf(initial.pricesIncludeTax) }
-
-    var bankName by remember { mutableStateOf(initial.bankName) }
-    var accountHolder by remember { mutableStateOf(initial.accountHolder) }
-    var accountNumber by remember { mutableStateOf(initial.accountNumber) }
-    var ifscCode by remember { mutableStateOf(initial.ifscCode) }
-    var branch by remember { mutableStateOf(initial.branch) }
-    var upiId by remember { mutableStateOf(initial.upiId) }
-
-    var prefix by remember { mutableStateOf(initial.prefix) }
-    var nextNumber by remember { mutableStateOf(initial.nextNumber) }
-    var currency by remember { mutableStateOf(initial.currency) }
-    var currencyDropdownOpen by remember { mutableStateOf(false) }
-    val currencies = listOf("INR (₹)", "USD ($)", "EUR (€)", "GBP (£)", "AED (د.إ)", "AUD ($)", "CAD ($)", "SGD ($)")
-
-    var paymentTerms by remember { mutableStateOf(initial.paymentTerms) }
-    var defaultNotes by remember { mutableStateOf(initial.defaultNotes) }
+    val countries = listOf(
+        "India", "USA", "UK", "UAE", "Australia", "Canada",
+        "Germany", "Singapore", "Nigeria", "Kenya",
+        "South Africa", "Brazil"
+    )
 
     Scaffold(
         topBar = {
             WavesHeader(
-                title = "Business Setup",
+                title = "Business Profile",
                 onBackClick = onNavigateBack,
                 actions = {
                     TextButton(
@@ -155,7 +134,12 @@ fun BusinessProfileScreen(
                         },
                         modifier = Modifier.testTag("business_save_header_button")
                     ) {
-                        Text("Save", color = OnPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(
+                            "Save",
+                            color = OnPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
                     }
                 }
             )
@@ -169,11 +153,11 @@ fun BusinessProfileScreen(
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Section LOGO: circle 100dp placeholder + "Tap to upload"
+            // ===== LOGO =====
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -183,7 +167,9 @@ fun BusinessProfileScreen(
                         .size(100.dp)
                         .clip(CircleShape)
                         .background(Color(0xFFE6F4EA))
-                        .clickable { showDemoToast(context, "Tap to upload logo") },
+                        .clickable {
+                            showDemoToast(context, "Logo picker coming soon")
+                        },
                     contentAlignment = Alignment.Center
                 ) {
                     Image(
@@ -216,7 +202,7 @@ fun BusinessProfileScreen(
                 )
             }
 
-            // Section BUSINESS INFO
+            // ===== BUSINESS INFO =====
             SectionHeader(title = "BUSINESS INFO")
             WavesCard {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -233,7 +219,7 @@ fun BusinessProfileScreen(
                 }
             }
 
-            // Section CONTACT
+            // ===== CONTACT =====
             SectionHeader(title = "CONTACT")
             WavesCard {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -257,7 +243,7 @@ fun BusinessProfileScreen(
                 }
             }
 
-            // Section ADDRESS
+            // ===== ADDRESS =====
             SectionHeader(title = "ADDRESS")
             WavesCard {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -312,7 +298,10 @@ fun BusinessProfileScreen(
                                     shape = RoundedCornerShape(12.dp),
                                     trailingIcon = {
                                         IconButton(onClick = { countryDropdownOpen = true }) {
-                                            Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
+                                            Icon(
+                                                Icons.Filled.ArrowDropDown,
+                                                contentDescription = null
+                                            )
                                         }
                                     },
                                     colors = OutlinedTextFieldDefaults.colors(
@@ -342,207 +331,7 @@ fun BusinessProfileScreen(
                 }
             }
 
-            // Section TAX
-            SectionHeader(title = "TAX")
-            WavesCard {
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Box {
-                        Column {
-                            Text(
-                                text = "Tax Label",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = TextSecondary,
-                                modifier = Modifier.padding(bottom = 6.dp)
-                            )
-                            OutlinedTextField(
-                                value = taxLabel,
-                                onValueChange = {},
-                                readOnly = true,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(56.dp)
-                                    .clickable { taxDropdownOpen = true },
-                                shape = RoundedCornerShape(12.dp),
-                                trailingIcon = {
-                                    IconButton(onClick = { taxDropdownOpen = true }) {
-                                        Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
-                                    }
-                                },
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedContainerColor = SurfaceColor,
-                                    unfocusedContainerColor = SurfaceColor,
-                                    focusedBorderColor = AccentCyan,
-                                    unfocusedBorderColor = InputBorderGray
-                                )
-                            )
-                            DropdownMenu(
-                                expanded = taxDropdownOpen,
-                                onDismissRequest = { taxDropdownOpen = false }
-                            ) {
-                                taxLabels.forEach { item ->
-                                    DropdownMenuItem(
-                                        text = { Text(item) },
-                                        onClick = {
-                                            taxLabel = item
-                                            taxDropdownOpen = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    WavesTextField(
-                        value = taxNumber,
-                        onValueChange = { taxNumber = it },
-                        label = "Tax Number / GSTIN"
-                    )
-
-                    WavesTextField(
-                        value = defaultTaxRate,
-                        onValueChange = { defaultTaxRate = it },
-                        label = "Default Tax Rate %",
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                    )
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { pricesIncludeTax = !pricesIncludeTax }
-                    ) {
-                        Checkbox(
-                            checked = pricesIncludeTax,
-                            onCheckedChange = { pricesIncludeTax = it },
-                            colors = CheckboxDefaults.colors(checkedColor = EmeraldInk, checkmarkColor = AccentCyan)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Prices include tax", fontSize = 14.sp, color = TextPrimary)
-                    }
-                }
-            }
-
-            // Section BANK ACCOUNT
-            SectionHeader(title = "BANK ACCOUNT")
-            WavesCard {
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    WavesTextField(
-                        value = bankName,
-                        onValueChange = { bankName = it },
-                        label = "Bank Name"
-                    )
-                    WavesTextField(
-                        value = accountHolder,
-                        onValueChange = { accountHolder = it },
-                        label = "Account Holder Name"
-                    )
-                    WavesTextField(
-                        value = accountNumber,
-                        onValueChange = { accountNumber = it },
-                        label = "Account Number"
-                    )
-                    WavesTextField(
-                        value = ifscCode,
-                        onValueChange = { ifscCode = it },
-                        label = "IFSC / SWIFT / IBAN"
-                    )
-                    WavesTextField(
-                        value = branch,
-                        onValueChange = { branch = it },
-                        label = "Branch"
-                    )
-                    WavesTextField(
-                        value = upiId,
-                        onValueChange = { upiId = it },
-                        label = "UPI ID"
-                    )
-                }
-            }
-
-            // Section INVOICE DEFAULTS
-            SectionHeader(title = "INVOICE DEFAULTS")
-            WavesCard {
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        WavesTextField(
-                            value = prefix,
-                            onValueChange = { prefix = it },
-                            label = "Prefix",
-                            modifier = Modifier.weight(1f)
-                        )
-                        WavesTextField(
-                            value = nextNumber,
-                            onValueChange = { nextNumber = it },
-                            label = "Next Number",
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    Box {
-                        Column {
-                            Text(
-                                text = "Currency",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = TextSecondary,
-                                modifier = Modifier.padding(bottom = 6.dp)
-                            )
-                            OutlinedTextField(
-                                value = currency,
-                                onValueChange = {},
-                                readOnly = true,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(56.dp)
-                                    .clickable { currencyDropdownOpen = true },
-                                shape = RoundedCornerShape(12.dp),
-                                trailingIcon = {
-                                    IconButton(onClick = { currencyDropdownOpen = true }) {
-                                        Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
-                                    }
-                                },
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedContainerColor = SurfaceColor,
-                                    unfocusedContainerColor = SurfaceColor,
-                                    focusedBorderColor = AccentCyan,
-                                    unfocusedBorderColor = InputBorderGray
-                                )
-                            )
-                            DropdownMenu(
-                                expanded = currencyDropdownOpen,
-                                onDismissRequest = { currencyDropdownOpen = false }
-                            ) {
-                                currencies.forEach { item ->
-                                    DropdownMenuItem(
-                                        text = { Text(item) },
-                                        onClick = {
-                                            currency = item
-                                            currencyDropdownOpen = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    WavesTextField(
-                        value = paymentTerms,
-                        onValueChange = { paymentTerms = it },
-                        label = "Payment Terms"
-                    )
-
-                    WavesTextField(
-                        value = defaultNotes,
-                        onValueChange = { defaultNotes = it },
-                        label = "Default Notes",
-                        singleLine = false,
-                        maxLines = 3
-                    )
-                }
-            }
-
-            // Full-width emerald "SAVE CHANGES" button at bottom
+            // ===== SAVE BUTTON =====
             WavesPrimaryButton(
                 text = "SAVE CHANGES",
                 onClick = {
@@ -563,10 +352,11 @@ fun BusinessProfileScreen(
 @Composable
 fun SectionHeader(title: String) {
     Text(
-        text = title,
-        fontSize = 14.sp,
-        fontWeight = FontWeight.Bold,
-        color = EmeraldInk,
-        modifier = Modifier.padding(top = 4.dp)
+        text = title.uppercase(),
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Medium,
+        color = TextSecondary,
+        letterSpacing = 1.sp,
+        modifier = Modifier.padding(start = 4.dp, top = 4.dp)
     )
 }

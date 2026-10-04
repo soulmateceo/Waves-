@@ -14,13 +14,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -40,7 +37,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.components.WavesCard
@@ -54,8 +50,33 @@ import com.example.ui.theme.EmeraldInk
 import com.example.ui.theme.InputBorderGray
 import com.example.ui.theme.OnPrimary
 import com.example.ui.theme.SurfaceColor
-import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+
+/**
+ * Country → Tax label + tax number format hint.
+ * Label: what the tax is called in that country.
+ * Format: what the number looks like (used as placeholder/helper).
+ */
+private data class CountryTax(
+    val country: String,
+    val label: String,
+    val formatHint: String
+)
+
+private val countryTaxMap = listOf(
+    CountryTax("India", "GSTIN / PAN", "22AAAAA0000A1Z5"),
+    CountryTax("UK", "VAT / UTR / NINO", "GB123456789"),
+    CountryTax("USA", "EIN / SSN", "12-3456789"),
+    CountryTax("UAE", "TRN", "100123456700003"),
+    CountryTax("Australia", "ABN / TFN", "12 345 678 901"),
+    CountryTax("Canada", "BN / SIN", "123456789RT0001"),
+    CountryTax("Germany", "USt-IdNr / Steuernummer", "DE123456789"),
+    CountryTax("Singapore", "UEN / GST Reg No", "202012345A"),
+    CountryTax("Nigeria", "TIN / VAT Reg No", "12345678-0001"),
+    CountryTax("Kenya", "KRA PIN", "P051234567X"),
+    CountryTax("South Africa", "VAT Reg No", "4123456789"),
+    CountryTax("Brazil", "CNPJ / CPF", "12.345.678/0001-90")
+)
 
 @Composable
 fun TaxSettingsScreen(
@@ -64,60 +85,20 @@ fun TaxSettingsScreen(
 ) {
     val context = LocalContext.current
 
-    val countries = listOf(
-        "India", "USA", "UK", "UAE", "Australia",
-        "Canada", "Germany", "Singapore", "Nigeria", "Kenya",
-        "South Africa", "Brazil"
-    )
-
     var selectedCountry by remember { mutableStateOf("India") }
     var countryDropdownOpen by remember { mutableStateOf(false) }
 
-    var taxLabel by remember { mutableStateOf("GSTIN") }
-    var taxNumber by remember { mutableStateOf("27AAAAA0000A1Z5") }
-    var defaultTaxRate by remember { mutableStateOf("18") }
-    var pricesIncludeTax by remember { mutableStateOf(false) }
+    val initial = countryTaxMap.first { it.country == "India" }
+    var taxLabel by remember { mutableStateOf(initial.label) }
+    var taxFormatHint by remember { mutableStateOf(initial.formatHint) }
+    var taxNumber by remember { mutableStateOf("") }
 
     fun updateDefaultsForCountry(country: String) {
+        val config = countryTaxMap.find { it.country == country } ?: return
         selectedCountry = country
-        when (country) {
-            "India" -> {
-                taxLabel = "GSTIN"
-                defaultTaxRate = "18"
-            }
-            "USA" -> {
-                taxLabel = "Sales Tax / EIN"
-                defaultTaxRate = "8.25"
-            }
-            "UK" -> {
-                taxLabel = "VAT Number"
-                defaultTaxRate = "20"
-            }
-            "UAE" -> {
-                taxLabel = "TRN (VAT)"
-                defaultTaxRate = "5"
-            }
-            "Australia" -> {
-                taxLabel = "ABN / GST"
-                defaultTaxRate = "10"
-            }
-            "Canada" -> {
-                taxLabel = "GST / HST"
-                defaultTaxRate = "13"
-            }
-            "Germany" -> {
-                taxLabel = "MwSt / USt-IdNr"
-                defaultTaxRate = "19"
-            }
-            "Singapore" -> {
-                taxLabel = "GST Number"
-                defaultTaxRate = "9"
-            }
-            else -> {
-                taxLabel = "Tax / VAT"
-                defaultTaxRate = "15"
-            }
-        }
+        taxLabel = config.label
+        taxFormatHint = config.formatHint
+        taxNumber = ""  // clear so user enters new value
     }
 
     Scaffold(
@@ -133,7 +114,12 @@ fun TaxSettingsScreen(
                         },
                         modifier = Modifier.testTag("tax_settings_save_button")
                     ) {
-                        Text("Save", color = OnPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(
+                            "Save",
+                            color = OnPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
                     }
                 }
             )
@@ -151,7 +137,7 @@ fun TaxSettingsScreen(
         ) {
             Spacer(modifier = Modifier.height(4.dp))
 
-            // Info card: "Country selection auto-fills tax label, rate, and currency. You can override any value."
+            // ===== INFO CARD =====
             WavesCard {
                 Row(verticalAlignment = Alignment.Top) {
                     Icon(
@@ -162,7 +148,7 @@ fun TaxSettingsScreen(
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "Country selection auto-fills tax label, rate, and currency. You can override any value.",
+                        text = "Country selection auto-fills the tax label and format hint. You can override the label if needed.",
                         fontSize = 13.sp,
                         color = TextSecondary,
                         lineHeight = 18.sp
@@ -170,10 +156,11 @@ fun TaxSettingsScreen(
                 }
             }
 
-            // Section TAX CONFIG
+            // ===== TAX CONFIGURATION =====
             SectionHeader(title = "TAX CONFIGURATION")
             WavesCard {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    // Country dropdown
                     Box {
                         Column {
                             Text(
@@ -194,7 +181,10 @@ fun TaxSettingsScreen(
                                 shape = RoundedCornerShape(12.dp),
                                 trailingIcon = {
                                     IconButton(onClick = { countryDropdownOpen = true }) {
-                                        Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
+                                        Icon(
+                                            Icons.Filled.ArrowDropDown,
+                                            contentDescription = null
+                                        )
                                     }
                                 },
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -208,11 +198,11 @@ fun TaxSettingsScreen(
                                 expanded = countryDropdownOpen,
                                 onDismissRequest = { countryDropdownOpen = false }
                             ) {
-                                countries.forEach { item ->
+                                countryTaxMap.forEach { item ->
                                     DropdownMenuItem(
-                                        text = { Text(item) },
+                                        text = { Text(item.country) },
                                         onClick = {
-                                            updateDefaultsForCountry(item)
+                                            updateDefaultsForCountry(item.country)
                                             countryDropdownOpen = false
                                         }
                                     )
@@ -221,49 +211,24 @@ fun TaxSettingsScreen(
                         }
                     }
 
+                    // Tax label (auto-filled, editable)
                     WavesTextField(
                         value = taxLabel,
                         onValueChange = { taxLabel = it },
                         label = "Tax Label"
                     )
 
+                    // Tax number with country-specific placeholder
                     WavesTextField(
                         value = taxNumber,
                         onValueChange = { taxNumber = it },
-                        label = "Tax Number / ID"
+                        label = "Tax Number",
+                        placeholder = taxFormatHint
                     )
-
-                    WavesTextField(
-                        value = defaultTaxRate,
-                        onValueChange = { defaultTaxRate = it },
-                        label = "Default Tax Rate %",
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                    )
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { pricesIncludeTax = !pricesIncludeTax }
-                    ) {
-                        Checkbox(
-                            checked = pricesIncludeTax,
-                            onCheckedChange = { pricesIncludeTax = it },
-                            colors = CheckboxDefaults.colors(
-                                checkedColor = EmeraldInk,
-                                checkmarkColor = AccentCyan
-                            )
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Prices include tax",
-                            fontSize = 14.sp,
-                            color = TextPrimary
-                        )
-                    }
                 }
             }
 
+            // ===== SAVE BUTTON =====
             WavesPrimaryButton(
                 text = "SAVE TAX SETTINGS",
                 onClick = {
@@ -275,4 +240,16 @@ fun TaxSettingsScreen(
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
+}
+
+@Composable
+private fun SectionHeader(title: String) {
+    Text(
+        text = title.uppercase(),
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Medium,
+        color = TextSecondary,
+        letterSpacing = 1.sp,
+        modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+    )
 }

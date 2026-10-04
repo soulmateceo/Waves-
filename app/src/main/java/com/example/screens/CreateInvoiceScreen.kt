@@ -14,11 +14,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -42,10 +41,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.components.StateScreen
@@ -81,6 +80,7 @@ fun CreateInvoiceScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+
     var invoiceNumber by remember { mutableStateOf("INV-004") }
     var issueDate by remember { mutableStateOf("04 Oct 2026") }
     var dueDate by remember { mutableStateOf("19 Oct 2026") }
@@ -116,8 +116,8 @@ fun CreateInvoiceScreen(
 
     val items = remember {
         mutableStateListOf(
-            InvoiceItem("i1", "Website Design", 1, 5000.0, 18.0),
-            InvoiceItem("i2", "Hosting (annual)", 1, 2000.0, 18.0)
+            InvoiceItem("i1", "Website Design", 1.0, 5000.0, 18.0),
+            InvoiceItem("i2", "Hosting (annual)", 1.0, 2000.0, 18.0)
         )
     }
 
@@ -128,7 +128,11 @@ fun CreateInvoiceScreen(
     val subtotal = items.sumOf { it.subtotal }
     val discount = discountStr.toDoubleOrNull() ?: 0.0
     val taxAmount = items.sumOf { it.taxAmount }
-    val grandTotal = (subtotal - discount) + taxAmount
+    val grandTotal = (subtotal - discount).coerceAtLeast(0.0) + taxAmount
+
+    // Compute average tax rate for display (since different items may differ)
+    val averageTaxRate = if (items.isEmpty()) 0.0
+        else items.map { it.taxRate }.average()
 
     Scaffold(
         topBar = {
@@ -143,7 +147,12 @@ fun CreateInvoiceScreen(
                         },
                         modifier = Modifier.testTag("invoice_save_header_button")
                     ) {
-                        Text("Save", color = OnPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(
+                            "Save",
+                            color = OnPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
                     }
                 }
             )
@@ -161,7 +170,7 @@ fun CreateInvoiceScreen(
         ) {
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Section CLIENT
+            // ===== CLIENT DETAILS =====
             SectionHeader(title = "CLIENT DETAILS")
             WavesCard {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -171,7 +180,7 @@ fun CreateInvoiceScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = if (selectedClient != null) "Bill To" else "Select Client",
+                            text = if (selectedClient != null) "Bill To" else "Select Client *",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
                             color = TextSecondary
@@ -187,7 +196,8 @@ fun CreateInvoiceScreen(
 
                     Box {
                         OutlinedTextField(
-                            value = selectedClient?.let { "${it.name} (${it.city})" } ?: "Choose Client",
+                            value = selectedClient?.let { "${it.name} (${it.city})" }
+                                ?: "Choose Client",
                             onValueChange = {},
                             readOnly = true,
                             modifier = Modifier
@@ -196,7 +206,11 @@ fun CreateInvoiceScreen(
                                 .clickable { clientDropdownOpen = true },
                             shape = RoundedCornerShape(12.dp),
                             leadingIcon = {
-                                Icon(Icons.Filled.Person, contentDescription = null, tint = EmeraldInk)
+                                Icon(
+                                    Icons.Filled.Person,
+                                    contentDescription = null,
+                                    tint = EmeraldInk
+                                )
                             },
                             trailingIcon = {
                                 IconButton(onClick = { clientDropdownOpen = true }) {
@@ -229,7 +243,7 @@ fun CreateInvoiceScreen(
                 }
             }
 
-            // Section DETAILS
+            // ===== INVOICE DETAILS =====
             SectionHeader(title = "INVOICE DETAILS")
             WavesCard {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -255,7 +269,7 @@ fun CreateInvoiceScreen(
                 }
             }
 
-            // Section ITEMS
+            // ===== ITEMS & SERVICES =====
             SectionHeader(title = "ITEMS & SERVICES")
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items.forEachIndexed { index, item ->
@@ -270,11 +284,14 @@ fun CreateInvoiceScreen(
                                     text = item.name,
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = TextPrimary
+                                    color = TextPrimary,
+                                    modifier = Modifier.weight(1f)
                                 )
                                 Row {
                                     IconButton(
-                                        onClick = { showDemoToast(context, "Editing ${item.name}") },
+                                        onClick = {
+                                            showDemoToast(context, "Editing ${item.name}")
+                                        },
                                         modifier = Modifier.size(32.dp)
                                     ) {
                                         Icon(
@@ -289,7 +306,10 @@ fun CreateInvoiceScreen(
                                             if (items.size > 1) {
                                                 items.removeAt(index)
                                             } else {
-                                                showDemoToast(context, "Invoice must have at least one item")
+                                                showDemoToast(
+                                                    context,
+                                                    "Invoice must have at least one item"
+                                                )
                                             }
                                         },
                                         modifier = Modifier.size(32.dp)
@@ -309,7 +329,9 @@ fun CreateInvoiceScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
-                                    text = "${item.quantity} × ${SampleData.formatCurrency(item.unitPrice)} (Tax: ${item.taxRate.toInt()}%)",
+                                    text = "${item.quantity.toInt()} × ${
+                                        SampleData.formatCurrency(item.unitPrice)
+                                    } (Tax: ${item.taxRate.toInt()}%)",
                                     fontSize = 13.sp,
                                     color = TextSecondary
                                 )
@@ -331,13 +353,14 @@ fun CreateInvoiceScreen(
                     WavesSecondaryButton(
                         text = "+ From Products",
                         onClick = {
-                            val nextProduct = SampleData.products.getOrNull(items.size % SampleData.products.size)
+                            val nextProduct = SampleData.products
+                                .getOrNull(items.size % SampleData.products.size)
                                 ?: SampleData.products.first()
                             items.add(
                                 InvoiceItem(
                                     id = "i_${System.currentTimeMillis()}",
                                     name = nextProduct.name,
-                                    quantity = 1,
+                                    quantity = 1.0,
                                     unitPrice = nextProduct.unitPrice,
                                     taxRate = nextProduct.taxRate
                                 )
@@ -354,7 +377,7 @@ fun CreateInvoiceScreen(
                                 InvoiceItem(
                                     id = "i_${System.currentTimeMillis()}",
                                     name = "Consulting & Retainer",
-                                    quantity = 1,
+                                    quantity = 1.0,
                                     unitPrice = 1500.0,
                                     taxRate = 18.0
                                 )
@@ -366,7 +389,7 @@ fun CreateInvoiceScreen(
                 }
             }
 
-            // Section SUMMARY (card)
+            // ===== SUMMARY =====
             SectionHeader(title = "SUMMARY")
             WavesCard {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -375,7 +398,11 @@ fun CreateInvoiceScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text("Subtotal", fontSize = 14.sp, color = TextSecondary)
-                        Text(SampleData.formatCurrency(subtotal), fontSize = 14.sp, color = TextPrimary)
+                        Text(
+                            SampleData.formatCurrency(subtotal),
+                            fontSize = 14.sp,
+                            color = TextPrimary
+                        )
                     }
 
                     Row(
@@ -384,24 +411,59 @@ fun CreateInvoiceScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text("Discount (₹)", fontSize = 14.sp, color = TextSecondary)
-                        Text(SampleData.formatCurrency(discount), fontSize = 14.sp, color = TextPrimary)
+                        Box(modifier = Modifier.width(100.dp)) {
+                            OutlinedTextField(
+                                value = discountStr,
+                                onValueChange = { discountStr = it },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Number
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = SurfaceColor,
+                                    unfocusedContainerColor = SurfaceColor,
+                                    focusedBorderColor = AccentCyan,
+                                    unfocusedBorderColor = InputBorderGray
+                                )
+                            )
+                        }
                     }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("Tax (18%)", fontSize = 14.sp, color = TextSecondary)
-                        Text(SampleData.formatCurrency(taxAmount), fontSize = 14.sp, color = TextPrimary)
+                        Text(
+                            "Tax (avg ${averageTaxRate.toInt()}%)",
+                            fontSize = 14.sp,
+                            color = TextSecondary
+                        )
+                        Text(
+                            SampleData.formatCurrency(taxAmount),
+                            fontSize = 14.sp,
+                            color = TextPrimary
+                        )
                     }
 
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = BorderGray)
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        color = BorderGray
+                    )
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("Grand Total", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                        Text(
+                            "Grand Total",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
                         Text(
                             SampleData.formatCurrency(grandTotal),
                             fontSize = 18.sp,
@@ -412,7 +474,7 @@ fun CreateInvoiceScreen(
                 }
             }
 
-            // Section NOTES & TERMS
+            // ===== NOTES & TERMS =====
             SectionHeader(title = "NOTES & TERMS")
             WavesCard {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -433,7 +495,7 @@ fun CreateInvoiceScreen(
                 }
             }
 
-            // Full-width emerald "PREVIEW & SAVE" button
+            // ===== PREVIEW & SAVE =====
             WavesPrimaryButton(
                 text = "PREVIEW & SAVE",
                 onClick = {
@@ -449,4 +511,16 @@ fun CreateInvoiceScreen(
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
+}
+
+@Composable
+private fun SectionHeader(title: String) {
+    Text(
+        text = title.uppercase(),
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Medium,
+        color = TextSecondary,
+        letterSpacing = 1.sp,
+        modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+    )
 }

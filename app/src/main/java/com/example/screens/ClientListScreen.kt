@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
@@ -75,8 +76,11 @@ fun ClientListScreen(
             "Archived" -> client.isArchived
             else -> true
         }
-        val matchesSearch = client.name.contains(searchQuery, ignoreCase = true) ||
-                (client.email?.contains(searchQuery, ignoreCase = true) ?: false)
+        val matchesSearch = searchQuery.isBlank() ||
+                client.name.contains(searchQuery, ignoreCase = true) ||
+                (client.email?.contains(searchQuery, ignoreCase = true) ?: false) ||
+                (client.phone?.contains(searchQuery, ignoreCase = true) ?: false) ||
+                (client.city?.contains(searchQuery, ignoreCase = true) ?: false)
         matchesFilter && matchesSearch
     }
 
@@ -129,14 +133,28 @@ fun ClientListScreen(
                 .padding(innerPadding)
         ) {
             if (isSearchVisible) {
-                Box(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
+                Box(
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                ) {
                     WavesTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
                         label = "Search Clients",
-                        placeholder = "Type name or email...",
+                        placeholder = "Type name, email, phone or city...",
                         leadingIcon = Icons.Filled.Search
                     )
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(
+                            onClick = { searchQuery = "" },
+                            modifier = Modifier.align(Alignment.CenterEnd)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = "Clear",
+                                tint = TextSecondary
+                            )
+                        }
+                    }
                 }
             }
 
@@ -226,7 +244,7 @@ fun ClientListScreen(
                                         )
                                     } else {
                                         Text(
-                                            text = "All paid ✓",
+                                            text = "All paid",
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = SuccessGreen
@@ -242,7 +260,7 @@ fun ClientListScreen(
                     }
 
                     item {
-                        Spacer(modifier = Modifier.height(72.dp))
+                        Spacer(modifier = Modifier.height(88.dp))
                     }
                 }
             }

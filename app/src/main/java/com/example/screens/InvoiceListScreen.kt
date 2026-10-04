@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -72,11 +73,14 @@ fun InvoiceListScreen(
             "Partial" -> invoice.status == InvoiceStatus.HALF_PAID
             "Paid" -> invoice.status == InvoiceStatus.PAID
             "Overdue" -> invoice.status == InvoiceStatus.OVERDUE
-            "Cancelled" -> invoice.status == InvoiceStatus.CANCELLED
+            "Cancelled" -> invoice.status == InvoiceStatus.CANCELLED ||
+                    invoice.status == InvoiceStatus.WRITTEN_OFF
             else -> true
         }
-        val matchesSearch = invoice.id.contains(searchQuery, ignoreCase = true) ||
-                invoice.clientName.contains(searchQuery, ignoreCase = true)
+        val matchesSearch = searchQuery.isBlank() ||
+                invoice.id.contains(searchQuery, ignoreCase = true) ||
+                invoice.clientName.contains(searchQuery, ignoreCase = true) ||
+                (invoice.clientEmail?.contains(searchQuery, ignoreCase = true) ?: false)
         matchesFilter && matchesSearch
     }
 
@@ -129,7 +133,9 @@ fun InvoiceListScreen(
                 .padding(innerPadding)
         ) {
             if (isSearchVisible) {
-                Box(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
+                Box(
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                ) {
                     WavesTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
@@ -137,10 +143,22 @@ fun InvoiceListScreen(
                         placeholder = "Invoice number or client name...",
                         leadingIcon = Icons.Filled.Search
                     )
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(
+                            onClick = { searchQuery = "" },
+                            modifier = Modifier.align(Alignment.CenterEnd)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = "Clear",
+                                tint = TextSecondary
+                            )
+                        }
+                    }
                 }
             }
 
-            // Horizontal scroll status tabs: [All][Pending][Partial][Paid][Overdue][Cancelled]
+            // Horizontal scroll status tabs
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -158,10 +176,18 @@ fun InvoiceListScreen(
             }
 
             if (filteredInvoices.isEmpty()) {
+                val emptyMessage = when {
+                    searchQuery.isNotBlank() ->
+                        "No invoices match '$searchQuery'."
+                    selectedFilter != "All" ->
+                        "No invoices with status '$selectedFilter'."
+                    else ->
+                        "Create your first invoice to get started."
+                }
                 EmptyStateView(
                     icon = Icons.Filled.Description,
                     title = "No invoices found",
-                    message = "No invoices found for '$selectedFilter'. Create a new invoice to get started.",
+                    message = emptyMessage,
                     buttonText = "+ New Invoice",
                     onButtonClick = onNavigateToCreateInvoice
                 )
@@ -182,7 +208,10 @@ fun InvoiceListScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
                                         Text(
                                             text = invoice.id,
                                             fontSize = 15.sp,
@@ -219,7 +248,9 @@ fun InvoiceListScreen(
                                         )
                                     }
 
-                                    if (invoice.balanceDue > 0 && invoice.status == InvoiceStatus.HALF_PAID) {
+                                    if (invoice.balanceDue > 0 &&
+                                        invoice.status == InvoiceStatus.HALF_PAID
+                                    ) {
                                         Text(
                                             text = "${SampleData.formatCurrency(invoice.balanceDue)} due",
                                             fontSize = 13.sp,
@@ -237,7 +268,7 @@ fun InvoiceListScreen(
                     }
 
                     item {
-                        Spacer(modifier = Modifier.height(72.dp))
+                        Spacer(modifier = Modifier.height(88.dp))
                     }
                 }
             }

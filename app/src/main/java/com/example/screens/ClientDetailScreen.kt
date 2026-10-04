@@ -17,7 +17,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MoreVert
@@ -140,7 +139,7 @@ fun ClientDetailScreen(
         ) {
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Profile card: avatar, name, email, phone, city
+            // ===== PROFILE CARD =====
             WavesCard {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -172,27 +171,57 @@ fun ClientDetailScreen(
                         )
                         Spacer(modifier = Modifier.height(3.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Filled.Email, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(14.dp))
+                            Icon(
+                                Icons.Filled.Email,
+                                contentDescription = null,
+                                tint = TextSecondary,
+                                modifier = Modifier.size(14.dp)
+                            )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = client.email ?: "No email provided", fontSize = 12.sp, color = TextSecondary)
+                            Text(
+                                text = client.email ?: "No email provided",
+                                fontSize = 12.sp,
+                                color = TextSecondary
+                            )
                         }
                         Spacer(modifier = Modifier.height(3.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Filled.Phone, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(14.dp))
+                            Icon(
+                                Icons.Filled.Phone,
+                                contentDescription = null,
+                                tint = TextSecondary,
+                                modifier = Modifier.size(14.dp)
+                            )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = client.phone, fontSize = 12.sp, color = TextSecondary)
+                            Text(
+                                text = client.phone ?: "No phone",
+                                fontSize = 12.sp,
+                                color = TextSecondary
+                            )
                         }
                         Spacer(modifier = Modifier.height(3.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Filled.LocationOn, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(14.dp))
+                            Icon(
+                                Icons.Filled.LocationOn,
+                                contentDescription = null,
+                                tint = TextSecondary,
+                                modifier = Modifier.size(14.dp)
+                            )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "${client.city}, ${client.country}", fontSize = 12.sp, color = TextSecondary)
+                            Text(
+                                text = listOfNotNull(
+                                    client.city.takeIf { it.isNotBlank() },
+                                    client.country.takeIf { it.isNotBlank() }
+                                ).joinToString(", ").ifBlank { "No address" },
+                                fontSize = 12.sp,
+                                color = TextSecondary
+                            )
                         }
                     }
                 }
             }
 
-            // Stat row: ₹25,760 billed | ₹20,760 paid | ₹5,000 due
+            // ===== STATS ROW =====
             WavesCard {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -248,24 +277,30 @@ fun ClientDetailScreen(
                 }
             }
 
-            // Tabs: [Invoices] [Payments] [Notes]
+            // ===== TABS =====
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 listOf("Invoices", "Payments", "Notes").forEach { tab ->
-                    WavesChip(
-                        text = tab,
-                        isSelected = selectedTab == tab,
-                        onClick = { selectedTab = tab }
-                    )
+                    Box(modifier = Modifier.weight(1f)) {
+                        WavesChip(
+                            text = tab,
+                            isSelected = selectedTab == tab,
+                            onClick = { selectedTab = tab }
+                        )
+                    }
                 }
             }
 
+            // ===== TAB CONTENT =====
             when (selectedTab) {
                 "Invoices" -> {
                     if (clientInvoices.isEmpty()) {
-                        Text("No invoices yet for this client.", fontSize = 14.sp, color = TextSecondary)
+                        EmptyTabMessage(
+                            title = "No invoices yet",
+                            message = "Tap + to create the first invoice for ${client.name}."
+                        )
                     } else {
                         clientInvoices.forEach { invoice ->
                             WavesCard(
@@ -277,8 +312,17 @@ fun ClientDetailScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Column {
-                                        Text(text = invoice.id, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                                        Text(text = "Due ${invoice.dueDate}", fontSize = 12.sp, color = TextSecondary)
+                                        Text(
+                                            text = invoice.id,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextPrimary
+                                        )
+                                        Text(
+                                            text = "Due ${invoice.dueDate}",
+                                            fontSize = 12.sp,
+                                            color = TextSecondary
+                                        )
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Text(
                                             text = SampleData.formatCurrency(invoice.grandTotal),
@@ -297,7 +341,10 @@ fun ClientDetailScreen(
                 "Payments" -> {
                     val allPayments = clientInvoices.flatMap { it.payments }
                     if (allPayments.isEmpty()) {
-                        Text("No payment records found.", fontSize = 14.sp, color = TextSecondary)
+                        EmptyTabMessage(
+                            title = "No payments yet",
+                            message = "Payments recorded against invoices will appear here."
+                        )
                     } else {
                         allPayments.forEach { payment ->
                             WavesCard {
@@ -306,10 +353,25 @@ fun ClientDetailScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Column {
-                                        Text(text = payment.method, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                                        Text(text = "${payment.date} · Ref: ${payment.reference}", fontSize = 12.sp, color = TextSecondary)
-                                        Text(text = payment.notes, fontSize = 12.sp, color = TextSecondary)
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = payment.method,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextPrimary
+                                        )
+                                        Text(
+                                            text = "${payment.date} · Ref: ${payment.reference ?: "—"}",
+                                            fontSize = 12.sp,
+                                            color = TextSecondary
+                                        )
+                                        if (!payment.notes.isNullOrBlank()) {
+                                            Text(
+                                                text = payment.notes,
+                                                fontSize = 12.sp,
+                                                color = TextSecondary
+                                            )
+                                        }
                                     }
                                     Text(
                                         text = "+${SampleData.formatCurrency(payment.amount)}",
@@ -326,17 +388,26 @@ fun ClientDetailScreen(
                 "Notes" -> {
                     WavesCard {
                         Column {
-                            Text(text = "Client Notes", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                            Text(
+                                text = "Client Notes",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = client.notes,
+                                text = client.notes?.takeIf { it.isNotBlank() }
+                                    ?: "No notes added for this client.",
                                 fontSize = 14.sp,
                                 color = TextSecondary,
                                 lineHeight = 20.sp
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
-                                text = "GST / Tax ID: ${client.taxNumber}",
+                                text = "Tax ID: ${
+                                    client.taxNumber?.takeIf { it.isNotBlank() }
+                                        ?: "Not provided"
+                                }",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = TextPrimary
@@ -346,7 +417,33 @@ fun ClientDetailScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(72.dp))
+            Spacer(modifier = Modifier.height(88.dp))
+        }
+    }
+}
+
+@Composable
+private fun EmptyTabMessage(title: String, message: String) {
+    WavesCard {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = title,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = TextPrimary
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = message,
+                fontSize = 13.sp,
+                color = TextSecondary,
+                lineHeight = 18.sp
+            )
+            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 }

@@ -1,7 +1,6 @@
 package com.example.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,15 +15,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Payment
@@ -37,23 +35,28 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
-import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.components.StatusChip
@@ -61,6 +64,7 @@ import com.example.components.WavesCard
 import com.example.components.WavesHeader
 import com.example.components.WavesPrimaryButton
 import com.example.components.WavesSecondaryButton
+import com.example.components.WavesTextField
 import com.example.components.showDemoToast
 import com.example.data.InvoiceStatus
 import com.example.data.SampleData
@@ -69,11 +73,12 @@ import com.example.ui.theme.BackgroundColor
 import com.example.ui.theme.BorderGray
 import com.example.ui.theme.DangerRed
 import com.example.ui.theme.EmeraldInk
+import com.example.ui.theme.InputBorderGray
 import com.example.ui.theme.OnPrimary
 import com.example.ui.theme.SuccessGreen
+import com.example.ui.theme.SurfaceColor
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
-import com.example.ui.theme.WarningAmber
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -155,45 +160,43 @@ fun InvoiceDetailScreen(
         ) {
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Status card: ₹8,260 · HALF PAID · ₹4,130 balance due
+            // ===== STATUS CARD =====
             WavesCard {
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = SampleData.formatCurrency(invoice.grandTotal),
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        if (balanceDue > 0) {
                             Text(
-                                text = SampleData.formatCurrency(invoice.grandTotal),
-                                fontSize = 24.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary
+                                text = "${SampleData.formatCurrency(balanceDue)} balance due",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = DangerRed
                             )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            if (balanceDue > 0) {
-                                Text(
-                                    text = "${SampleData.formatCurrency(balanceDue)} balance due",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = DangerRed
-                                )
-                            } else {
-                                Text(
-                                    text = "Fully paid on time",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = SuccessGreen
-                                )
-                            }
+                        } else {
+                            Text(
+                                text = "Fully paid on time",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = SuccessGreen
+                            )
                         }
-
-                        StatusChip(status = status)
                     }
+
+                    StatusChip(status = status)
                 }
             }
 
-            // Client card
+            // ===== CLIENT =====
             SectionHeader(title = "CLIENT")
             WavesCard {
                 Row(
@@ -231,7 +234,7 @@ fun InvoiceDetailScreen(
                 }
             }
 
-            // Dates card
+            // ===== DATES =====
             SectionHeader(title = "DATES")
             WavesCard {
                 Row(
@@ -241,17 +244,27 @@ fun InvoiceDetailScreen(
                     Column {
                         Text(text = "Issue Date", fontSize = 12.sp, color = TextSecondary)
                         Spacer(modifier = Modifier.height(2.dp))
-                        Text(text = invoice.issueDate, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                        Text(
+                            text = invoice.issueDate,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextPrimary
+                        )
                     }
                     Column(horizontalAlignment = Alignment.End) {
                         Text(text = "Due Date", fontSize = 12.sp, color = TextSecondary)
                         Spacer(modifier = Modifier.height(2.dp))
-                        Text(text = invoice.dueDate, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                        Text(
+                            text = invoice.dueDate,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextPrimary
+                        )
                     }
                 }
             }
 
-            // Items card
+            // ===== ITEMS =====
             SectionHeader(title = "ITEMS (${invoice.items.size})")
             WavesCard {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -261,36 +274,89 @@ fun InvoiceDetailScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column {
-                                Text(item.name, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
-                                Text("${item.quantity} × ${SampleData.formatCurrency(item.unitPrice)}", fontSize = 12.sp, color = TextSecondary)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    item.name,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    "${item.quantity.toInt()} × ${
+                                        SampleData.formatCurrency(item.unitPrice)
+                                    }",
+                                    fontSize = 12.sp,
+                                    color = TextSecondary
+                                )
                             }
-                            Text(SampleData.formatCurrency(item.total), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                            Text(
+                                SampleData.formatCurrency(item.total),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
                         }
                         HorizontalDivider(color = Color(0xFFF1F5F9))
                     }
                 }
             }
 
-            // Summary card with balance breakdown
+            // ===== PAYMENT SUMMARY =====
             SectionHeader(title = "PAYMENT SUMMARY")
             WavesCard {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
                         Text("Subtotal", fontSize = 13.sp, color = TextSecondary)
-                        Text(SampleData.formatCurrency(invoice.subtotal), fontSize = 13.sp, color = TextPrimary)
+                        Text(
+                            SampleData.formatCurrency(invoice.subtotal),
+                            fontSize = 13.sp,
+                            color = TextPrimary
+                        )
                     }
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Tax (${invoice.items.firstOrNull()?.taxRate?.toInt() ?: 18}%)", fontSize = 13.sp, color = TextSecondary)
-                        Text(SampleData.formatCurrency(invoice.taxAmount), fontSize = 13.sp, color = TextPrimary)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            "Tax (${invoice.items.firstOrNull()?.taxRate?.toInt() ?: 18}%)",
+                            fontSize = 13.sp,
+                            color = TextSecondary
+                        )
+                        Text(
+                            SampleData.formatCurrency(invoice.taxAmount),
+                            fontSize = 13.sp,
+                            color = TextPrimary
+                        )
                     }
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
                         Text("Paid so far", fontSize = 13.sp, color = SuccessGreen)
-                        Text("-${SampleData.formatCurrency(paidAmount)}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = SuccessGreen)
+                        Text(
+                            "-${SampleData.formatCurrency(paidAmount)}",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = SuccessGreen
+                        )
                     }
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = BorderGray)
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Balance Due", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        color = BorderGray
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            "Balance Due",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
                         Text(
                             SampleData.formatCurrency(balanceDue),
                             fontSize = 16.sp,
@@ -301,15 +367,13 @@ fun InvoiceDetailScreen(
                 }
             }
 
-            // Grid of action buttons (2 columns):
-            // [Record Payment] [Mark Paid]
-            // [Mark Half Paid] [Download PDF]
-            // [Share] [Copy Link]
-            // [Write Off] [Cancel Invoice]
-            // [Duplicate] [Delete]
+            // ===== ACTIONS =====
             SectionHeader(title = "ACTIONS")
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     ActionButtonItem(
                         text = "Record Payment",
                         icon = Icons.Filled.Payment,
@@ -330,7 +394,10 @@ fun InvoiceDetailScreen(
                     )
                 }
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     ActionButtonItem(
                         text = "Mark Half Paid",
                         icon = Icons.Filled.Receipt,
@@ -351,7 +418,10 @@ fun InvoiceDetailScreen(
                     )
                 }
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     ActionButtonItem(
                         text = "Share",
                         icon = Icons.Filled.Share,
@@ -368,14 +438,19 @@ fun InvoiceDetailScreen(
                     )
                 }
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     ActionButtonItem(
                         text = "Write Off",
                         icon = Icons.Filled.Cancel,
                         isPrimary = false,
                         isDestructive = true,
                         onClick = {
-                            status = InvoiceStatus.CANCELLED
+                            // WRITTEN_OFF = uncollectible. If your enum doesn't have it,
+                            // use CANCELLED for now.
+                            status = InvoiceStatus.WRITTEN_OFF
                             showDemoToast(context, "Invoice written off")
                         },
                         modifier = Modifier.weight(1f)
@@ -393,7 +468,10 @@ fun InvoiceDetailScreen(
                     )
                 }
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     ActionButtonItem(
                         text = "Duplicate",
                         icon = Icons.Filled.ContentCopy,
@@ -418,13 +496,12 @@ fun InvoiceDetailScreen(
             Spacer(modifier = Modifier.height(28.dp))
         }
 
-        // Record Payment ModalBottomSheet (Screen 16)
         if (showPaymentSheet) {
             RecordPaymentBottomSheet(
                 balanceDue = balanceDue,
                 sheetState = sheetState,
                 onDismissRequest = { showPaymentSheet = false },
-                onPaymentSaved = { amount, method ->
+                onPaymentSaved = { amount, _ ->
                     paidAmount = (paidAmount + amount).coerceAtMost(invoice.grandTotal)
                     if (paidAmount >= invoice.grandTotal) {
                         status = InvoiceStatus.PAID
@@ -462,4 +539,126 @@ private fun ActionButtonItem(
             modifier = modifier.height(48.dp)
         )
     }
+}
+
+/**
+ * Reusable record-payment bottom sheet.
+ * If you already have this in another file, DELETE this one
+ * to avoid duplicate symbol errors.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RecordPaymentBottomSheet(
+    balanceDue: Double,
+    sheetState: SheetState,
+    onDismissRequest: () -> Unit,
+    onPaymentSaved: (amount: Double, method: String) -> Unit
+) {
+    val context = LocalContext.current
+    var amountStr by remember {
+        mutableStateOf(
+            if (balanceDue > 0) balanceDue.toInt().toString() else ""
+        )
+    }
+    var selectedMethod by remember { mutableStateOf("Bank") }
+    var reference by remember { mutableStateOf("") }
+    val methods = listOf("Cash", "Bank", "UPI", "Card", "Other")
+
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        sheetState = sheetState,
+        containerColor = SurfaceColor
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                "Record Payment",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+
+            WavesTextField(
+                value = amountStr,
+                onValueChange = { amountStr = it },
+                label = "Amount",
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+
+            Column {
+                Text(
+                    "Method",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = TextSecondary,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    methods.forEach { method ->
+                        val selected = selectedMethod == method
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(40.dp)
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(
+                                    if (selected) EmeraldInk else SurfaceColor
+                                )
+                                .clickable { selectedMethod = method },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                method,
+                                fontSize = 12.sp,
+                                fontWeight = if (selected) FontWeight.Bold
+                                else FontWeight.Normal,
+                                color = if (selected) OnPrimary else TextSecondary
+                            )
+                        }
+                    }
+                }
+            }
+
+            WavesTextField(
+                value = reference,
+                onValueChange = { reference = it },
+                label = "Reference / Txn ID"
+            )
+
+            WavesPrimaryButton(
+                text = "SAVE PAYMENT",
+                onClick = {
+                    val amount = amountStr.toDoubleOrNull() ?: 0.0
+                    if (amount > 0.0) {
+                        onPaymentSaved(amount, selectedMethod)
+                        showDemoToast(context, "Payment saved")
+                        onDismissRequest()
+                    } else {
+                        showDemoToast(context, "Enter a valid amount")
+                    }
+                }
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+
+@Composable
+private fun SectionHeader(title: String) {
+    Text(
+        text = title.uppercase(),
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Medium,
+        color = TextSecondary,
+        letterSpacing = 1.sp,
+        modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+    )
 }

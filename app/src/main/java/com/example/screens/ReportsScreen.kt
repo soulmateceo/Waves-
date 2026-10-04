@@ -18,11 +18,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.ArrowBackIosNew
 import androidx.compose.material.icons.filled.ArrowForwardIos
-import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Settings
@@ -51,7 +48,6 @@ import com.example.components.WavesNavTab
 import com.example.components.WavesSecondaryButton
 import com.example.components.showDemoToast
 import com.example.data.SampleData
-import com.example.ui.theme.AccentCyan
 import com.example.ui.theme.BackgroundColor
 import com.example.ui.theme.DangerRed
 import com.example.ui.theme.EmeraldInk
@@ -111,7 +107,7 @@ fun ReportsScreen(
         ) {
             Spacer(modifier = Modifier.height(4.dp))
 
-            // Month selector: ◀ Oct 2026 ▶
+            // ===== MONTH SELECTOR =====
             WavesCard {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -124,7 +120,12 @@ fun ReportsScreen(
                         },
                         enabled = currentMonthIndex > 0
                     ) {
-                        Icon(Icons.Filled.ArrowBackIosNew, contentDescription = "Previous Month", tint = EmeraldInk, modifier = Modifier.size(18.dp))
+                        Icon(
+                            Icons.Filled.ArrowBackIosNew,
+                            contentDescription = "Previous Month",
+                            tint = EmeraldInk,
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
 
                     Text(
@@ -140,15 +141,21 @@ fun ReportsScreen(
                         },
                         enabled = currentMonthIndex < months.size - 1
                     ) {
-                        Icon(Icons.Filled.ArrowForwardIos, contentDescription = "Next Month", tint = EmeraldInk, modifier = Modifier.size(18.dp))
+                        Icon(
+                            Icons.Filled.ArrowForwardIos,
+                            contentDescription = "Next Month",
+                            tint = EmeraldInk,
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                 }
             }
 
-            // 2x2 stat grid cards:
-            // ₹1,25,000 Invoiced | ₹98,500 Collected
-            // ₹26,500 Outstanding | 12 Invoices
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            // ===== 2x2 STAT GRID =====
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 StatGridItem(
                     label = "Invoiced",
                     value = "₹1,25,000",
@@ -163,7 +170,10 @@ fun ReportsScreen(
                 )
             }
 
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 StatGridItem(
                     label = "Outstanding",
                     value = "₹26,500",
@@ -172,18 +182,13 @@ fun ReportsScreen(
                 )
                 StatGridItem(
                     label = "Total Invoices",
-                    value = "12 Invoices",
+                    value = "12",
                     valueColor = EmeraldInk,
                     modifier = Modifier.weight(1f)
                 )
             }
 
-            // Status breakdown with horizontal bars:
-            // Paid ████████ 8
-            // Half Paid ███ 2
-            // Pending ██ 1
-            // Overdue █ 1
-            // Cancelled ▏1
+            // ===== STATUS BREAKDOWN =====
             SectionHeader(title = "STATUS BREAKDOWN")
             WavesCard {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -195,7 +200,7 @@ fun ReportsScreen(
                 }
             }
 
-            // Top Clients list (numbered)
+            // ===== TOP CLIENTS =====
             SectionHeader(title = "TOP CLIENTS")
             WavesCard {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -205,7 +210,10 @@ fun ReportsScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
                                 Box(
                                     modifier = Modifier
                                         .size(28.dp)
@@ -246,7 +254,7 @@ fun ReportsScreen(
                 }
             }
 
-            // Export buttons: [Export CSV] [Export PDF]
+            // ===== EXPORT BUTTONS =====
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -304,8 +312,18 @@ private fun BreakdownBarRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(text = label, fontSize = 13.sp, color = TextPrimary, fontWeight = FontWeight.Medium)
-            Text(text = "$count", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            Text(
+                text = label,
+                fontSize = 13.sp,
+                color = TextPrimary,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = "$count",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
         }
         Spacer(modifier = Modifier.height(6.dp))
         Box(
@@ -315,13 +333,30 @@ private fun BreakdownBarRow(
                 .clip(RoundedCornerShape(4.dp))
                 .background(Color(0xFFF1F5F9))
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(fraction = (count.toFloat() / total.toFloat()).coerceIn(0.04f, 1f))
-                    .fillMaxHeight()
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(barColor)
-            )
+            if (count > 0 && total > 0) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(
+                            fraction = (count.toFloat() / total.toFloat())
+                                .coerceIn(0.04f, 1f)
+                        )
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(barColor)
+                )
+            }
         }
     }
+}
+
+@Composable
+private fun SectionHeader(title: String) {
+    Text(
+        text = title.uppercase(),
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Medium,
+        color = TextSecondary,
+        letterSpacing = 1.sp,
+        modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+    )
 }
