@@ -29,14 +29,19 @@ The release signing configuration in `app/build.gradle.kts` uses:
 - Keystore: `my-upload-key.jks` in the repository root by default, or the path in `KEYSTORE_PATH`
 - Key alias: `upload`
 - Environment variables: `STORE_PASSWORD` and `KEY_PASSWORD`
+- Local-only credential copies and `signing.env`: `credentials/` (ignored by Git)
 - Public upload certificate: [`upload_certificate.pem`](upload_certificate.pem)
 
-The private upload keystore and debug keystore are excluded by `.gitignore`. Never commit, email, or publish the private keystore or its passwords. Keep encrypted backups of the upload key and store its passwords in a password manager. The passwords are intentionally not recorded in this document or Git. If they are unavailable, recover them from the password manager or secret store used when the key was created before attempting a release build.
+The ignored local bundle contains `credentials/my-upload-key.jks`, `credentials/debug.keystore`, `credentials/upload_certificate.pem`, `credentials/google-services.json`, `credentials/sha-fingerprints.txt`, and `credentials/signing.env`. The active Firebase configuration remains `app/google-services.json`.
+
+The private upload keystore, debug keystore, and local credential copies are excluded by `.gitignore`. Never commit, email, or publish the private keystore or its passwords. Keep encrypted backups of the upload key and store its passwords in a password manager. The supplied password values are stored only in the ignored local file `credentials/signing.env`; they are not recorded in this document or Git.
 
 SHA-1 fingerprints:
 
 - Release/upload certificate: `DB:B4:7E:C1:6D:A6:6C:59:62:CA:99:A1:EB:AF:1F:CF:30:28:40:BE`
+- Release/upload certificate SHA-256: `7F:36:71:12:DF:46:F3:2F:34:F8:7E:91:27:36:DE:A1:5B:EC:8F:47:49:85:7A:CC:23:6A:AF:47:C7:8F:2F:FF`
 - Local debug certificate: `94:0E:9C:D7:3A:44:95:76:28:62:FF:4D:F6:B6:AE:E8:55:81:D0:B4`
+- Local debug certificate SHA-256: `A0:D5:70:CC:B0:AA:F0:37:0D:7C:98:68:20:4A:E7:74:F0:0D:DB:06:E6:AE:45:73:A6:D6:FC:94:2B:B8:E7:6D`
 
 Register the upload certificate fingerprint where required by Firebase/Google services. Google Play App Signing uses a separate app-signing key after enrollment; use the fingerprints shown in Play Console for production app-signing identity and API integrations.
 
