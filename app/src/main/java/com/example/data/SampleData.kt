@@ -36,7 +36,8 @@ enum class InvoiceStatus(val label: String) {
     HALF_PAID("HALF PAID"),
     PENDING("PENDING"),
     OVERDUE("OVERDUE"),
-    CANCELLED("CANCELLED")
+    CANCELLED("CANCELLED"),
+    WRITTEN_OFF("WRITTEN OFF")
 }
 
 data class InvoiceItem(

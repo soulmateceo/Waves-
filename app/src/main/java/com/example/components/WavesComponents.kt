@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -142,8 +143,6 @@ fun WavesHeader(
         }
     }
 }
-
-import androidx.compose.material.icons.filled.Person
 
 enum class WavesNavTab(val route: String, val label: String, val icon: ImageVector) {
     HOME("dashboard", "Home", Icons.Filled.Home),
@@ -468,6 +467,7 @@ fun StatusChip(status: InvoiceStatus) {
         InvoiceStatus.PENDING -> Color(0xFFF1F5F9) to NeutralGray
         InvoiceStatus.OVERDUE -> Color(0xFFFEE2E2) to DangerRed
         InvoiceStatus.CANCELLED -> Color(0xFFE2E8F0) to NeutralGray
+        InvoiceStatus.WRITTEN_OFF -> Color(0xFFE2E8F0) to NeutralGray
     }
 
     Box(

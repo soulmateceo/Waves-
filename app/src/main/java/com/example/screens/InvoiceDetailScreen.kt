@@ -1,6 +1,7 @@
 package com.example.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -649,16 +650,4 @@ private fun RecordPaymentBottomSheet(
             Spacer(modifier = Modifier.height(16.dp))
         }
     }
-}
-
-@Composable
-private fun SectionHeader(title: String) {
-    Text(
-        text = title.uppercase(),
-        fontSize = 12.sp,
-        fontWeight = FontWeight.Medium,
-        color = TextSecondary,
-        letterSpacing = 1.sp,
-        modifier = Modifier.padding(start = 4.dp, top = 4.dp)
-    )
 }

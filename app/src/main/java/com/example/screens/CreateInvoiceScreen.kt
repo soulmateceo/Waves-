@@ -116,8 +116,8 @@ fun CreateInvoiceScreen(
 
     val items = remember {
         mutableStateListOf(
-            InvoiceItem("i1", "Website Design", 1.0, 5000.0, 18.0),
-            InvoiceItem("i2", "Hosting (annual)", 1.0, 2000.0, 18.0)
+            InvoiceItem("i1", "Website Design", 1, 5000.0, 18.0),
+            InvoiceItem("i2", "Hosting (annual)", 1, 2000.0, 18.0)
         )
     }
 
@@ -360,7 +360,7 @@ fun CreateInvoiceScreen(
                                 InvoiceItem(
                                     id = "i_${System.currentTimeMillis()}",
                                     name = nextProduct.name,
-                                    quantity = 1.0,
+                                    quantity = 1,
                                     unitPrice = nextProduct.unitPrice,
                                     taxRate = nextProduct.taxRate
                                 )
@@ -377,7 +377,7 @@ fun CreateInvoiceScreen(
                                 InvoiceItem(
                                     id = "i_${System.currentTimeMillis()}",
                                     name = "Consulting & Retainer",
-                                    quantity = 1.0,
+                                    quantity = 1,
                                     unitPrice = 1500.0,
                                     taxRate = 18.0
                                 )
@@ -511,16 +511,4 @@ fun CreateInvoiceScreen(
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
-}
-
-@Composable
-private fun SectionHeader(title: String) {
-    Text(
-        text = title.uppercase(),
-        fontSize = 12.sp,
-        fontWeight = FontWeight.Medium,
-        color = TextSecondary,
-        letterSpacing = 1.sp,
-        modifier = Modifier.padding(start = 4.dp, top = 4.dp)
-    )
 }

@@ -348,15 +348,3 @@ private fun BreakdownBarRow(
         }
     }
 }
-
-@Composable
-private fun SectionHeader(title: String) {
-    Text(
-        text = title.uppercase(),
-        fontSize = 12.sp,
-        fontWeight = FontWeight.Medium,
-        color = TextSecondary,
-        letterSpacing = 1.sp,
-        modifier = Modifier.padding(start = 4.dp, top = 4.dp)
-    )
-}
