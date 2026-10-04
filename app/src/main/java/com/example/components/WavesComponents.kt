@@ -143,11 +143,17 @@ fun WavesHeader(
     }
 }
 
+import androidx.compose.material.icons.filled.Person
+
 enum class WavesNavTab(val route: String, val label: String, val icon: ImageVector) {
     HOME("dashboard", "Home", Icons.Filled.Home),
     INVOICES("invoices", "Invoices", Icons.Filled.Description),
     CLIENTS("clients", "Clients", Icons.Filled.People),
-    SETTINGS("settings", "Settings", Icons.Filled.Settings)
+    PROFILE("profile", "Profile", Icons.Filled.Person);
+
+    companion object {
+        val SETTINGS get() = PROFILE
+    }
 }
 
 @Composable
@@ -336,15 +342,15 @@ fun WavesTextField(
     val leadingIconTint = when {
         isError -> Color(0xFFDC2626)
         isFocused -> Color(0xFF00D4B8)
-        else -> Color(0xFF6B7280)
+        else -> Color(0xFF000000)
     }
 
     Column(modifier = modifier.fillMaxWidth()) {
         Text(
             text = label,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-            color = Color(0xFF6B7280),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color(0xFF000000),
             modifier = Modifier.padding(bottom = 6.dp)
         )
         OutlinedTextField(
@@ -354,7 +360,7 @@ fun WavesTextField(
                 {
                     Text(
                         text = it,
-                        color = Color(0xFF9CA3AF),
+                        color = Color(0xFF4B5563),
                         fontSize = 14.sp
                     )
                 }
@@ -401,12 +407,12 @@ fun WavesTextField(
                 focusedBorderColor = Color.Transparent,
                 unfocusedBorderColor = Color.Transparent,
                 errorBorderColor = Color.Transparent,
-                focusedTextColor = Color(0xFF0A2540),
-                unfocusedTextColor = Color(0xFF0A2540),
-                errorTextColor = Color(0xFF0A2540),
-                focusedPlaceholderColor = Color(0xFF9CA3AF),
-                unfocusedPlaceholderColor = Color(0xFF9CA3AF),
-                errorPlaceholderColor = Color(0xFF9CA3AF),
+                focusedTextColor = Color(0xFF000000),
+                unfocusedTextColor = Color(0xFF000000),
+                errorTextColor = Color(0xFF000000),
+                focusedPlaceholderColor = Color(0xFF4B5563),
+                unfocusedPlaceholderColor = Color(0xFF4B5563),
+                errorPlaceholderColor = Color(0xFF4B5563),
                 cursorColor = Color(0xFF00D4B8)
             )
         )

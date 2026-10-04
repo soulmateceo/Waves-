@@ -255,7 +255,7 @@ fun OtpVerificationScreen(
                     text = "Verify Your Email",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextPrimary,
+                    color = Color(0xFF000000),
                     textAlign = TextAlign.Center
                 )
 
@@ -263,8 +263,9 @@ fun OtpVerificationScreen(
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "We sent a 6-digit code to $decodedEmail",
-                    fontSize = 14.sp,
-                    color = TextSecondary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF000000),
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(horizontal = 16.dp)
                 )
@@ -371,13 +372,14 @@ fun OtpVerificationScreen(
                     Text(
                         text = "Didn't receive? ",
                         fontSize = 14.sp,
-                        color = TextSecondary
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF000000)
                     )
                     Text(
                         text = "Resend",
                         fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (secondsLeft == 0) AccentCyan else TextSecondary.copy(alpha = 0.5f),
+                        fontWeight = FontWeight.Bold,
+                        color = if (secondsLeft == 0) EmeraldInk else Color(0xFF000000),
                         modifier = Modifier
                             .testTag("otp_resend_button")
                             .clickable(enabled = secondsLeft == 0 && !isLoading) {
@@ -397,8 +399,9 @@ fun OtpVerificationScreen(
                     val seconds = secondsLeft % 60
                     Text(
                         text = String.format("in %02d:%02d", minutes, seconds),
-                        fontSize = 12.sp,
-                        color = TextSecondary
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF000000)
                     )
                 }
             }
@@ -447,7 +450,8 @@ fun OtpVerificationScreen(
                 Text(
                     text = "Change email?",
                     fontSize = 14.sp,
-                    color = TextSecondary,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF000000),
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .clickable { onNavigateBack() }

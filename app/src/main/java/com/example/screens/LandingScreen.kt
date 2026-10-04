@@ -36,9 +36,9 @@ import com.example.ui.theme.OnPrimary
 
 private val LandingBackground = Color(0xFFF8FAFC)
 private val LandingEmerald = Color(0xFF064E3B)
-private val DarkTextColor = Color(0xFF0A2540)
-private val DarkSecondaryText = Color(0xFF1E293B)
-private val AccountPromptColor = Color(0xFF374151)
+private val DarkTextColor = Color(0xFF000000)
+private val DarkSecondaryText = Color(0xFF000000)
+private val AccountPromptColor = Color(0xFF000000)
 
 @Composable
 fun LandingScreen(
