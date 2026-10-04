@@ -37,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,6 +49,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.components.StateScreen
+import com.example.components.StateType
 import com.example.components.WavesHeader
 import com.example.components.WavesPrimaryButton
 import com.example.components.WavesTextField
@@ -58,20 +61,36 @@ import com.example.ui.theme.BorderGray
 import com.example.ui.theme.EmeraldInk
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import kotlinx.coroutines.launch
 
 @Composable
 fun SignUpScreen(
     onNavigateBack: () -> Unit,
     onNavigateToLogIn: () -> Unit,
-    onNavigateToDashboard: () -> Unit,
+    onNavigateToOtp: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var fullName by remember { mutableStateOf("Rahul Sharma") }
     var email by remember { mutableStateOf("rahul@email.com") }
-    var password by remember { mutableStateOf("••••••••") }
+    var password by remember { mutableStateOf("Password123") }
     var isPasswordVisible by remember { mutableStateOf(false) }
     var agreeToTerms by remember { mutableStateOf(true) }
+    var hasSubmitted by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+
+    val fullNameError = if (hasSubmitted && fullName.isBlank()) "Full name is required" else null
+    val emailError = if (hasSubmitted && (!email.contains("@") || !email.contains("."))) "Enter a valid email" else null
+    val passwordError = if (hasSubmitted && password.length < 6) "Password must be at least 6 characters" else null
+
+    if (isLoading) {
+        StateScreen(
+            type = StateType.LOADING,
+            message = "Creating your account..."
+        )
+        return
+    }
 
     Scaffold(
         topBar = {
@@ -111,7 +130,8 @@ fun SignUpScreen(
                 onValueChange = { fullName = it },
                 label = "Full Name",
                 placeholder = "e.g. John Doe",
-                leadingIcon = Icons.Filled.Person
+                leadingIcon = Icons.Filled.Person,
+                errorMessage = fullNameError
             )
 
             WavesTextField(
@@ -120,16 +140,18 @@ fun SignUpScreen(
                 label = "Email",
                 placeholder = "name@company.com",
                 leadingIcon = Icons.Filled.Email,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                errorMessage = emailError
             )
 
             WavesTextField(
                 value = password,
                 onValueChange = { password = it },
                 label = "Password",
-                placeholder = "Min 8 characters",
+                placeholder = "Min 6 characters",
                 leadingIcon = Icons.Filled.Lock,
                 visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                errorMessage = passwordError,
                 trailingIcon = {
                     IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
                         Icon(
@@ -168,49 +190,23 @@ fun SignUpScreen(
             WavesPrimaryButton(
                 text = "CREATE ACCOUNT",
                 onClick = {
-                    showDemoToast(context, "Account created successfully!")
-                    onNavigateToDashboard()
+                    hasSubmitted = true
+                    if (fullName.isNotBlank() && email.contains("@") && email.contains(".") && password.length >= 6) {
+                        isLoading = true
+                        coroutineScope.launch {
+                            kotlinx.coroutines.delay(800)
+                            isLoading = false
+                            showDemoToast(context, "Verification code sent to $email")
+                            onNavigateToOtp(email)
+                        }
+                    }
                 }
             )
 
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                HorizontalDivider(modifier = Modifier.weight(1f), color = BorderGray)
-                Text(
-                    text = "OR",
-                    fontSize = 12.sp,
-                    color = TextSecondary,
-                    modifier = Modifier.padding(horizontal = 12.dp)
-                )
-                HorizontalDivider(modifier = Modifier.weight(1f), color = BorderGray)
-            }
-
-            OutlinedButton(
-                onClick = {
-                    showDemoToast(context, "Google Sign-In demo")
-                    onNavigateToDashboard()
-                },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp)
-                    .testTag("google_signup_button"),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, BorderGray)
-            ) {
-                Text(
-                    text = "Continue with Google",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TextPrimary
-                )
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp),
+                    .padding(vertical = 16.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {

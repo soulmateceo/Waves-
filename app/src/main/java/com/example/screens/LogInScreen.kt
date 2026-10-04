@@ -1,6 +1,5 @@
 package com.example.screens
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -20,16 +18,15 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,27 +38,57 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.components.StateScreen
+import com.example.components.StateType
 import com.example.components.WavesHeader
 import com.example.components.WavesPrimaryButton
 import com.example.components.WavesTextField
 import com.example.components.showDemoToast
 import com.example.ui.theme.BackgroundColor
-import com.example.ui.theme.BorderGray
 import com.example.ui.theme.EmeraldInk
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun LogInScreen(
     onNavigateBack: () -> Unit,
     onNavigateToSignUp: () -> Unit,
     onNavigateToDashboard: () -> Unit,
+    onNavigateToForgotPassword: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var email by remember { mutableStateOf("rahul@email.com") }
-    var password by remember { mutableStateOf("••••••••") }
+    var password by remember { mutableStateOf("Password123") }
     var isPasswordVisible by remember { mutableStateOf(false) }
+    var hasSubmitted by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+    var showErrorState by remember { mutableStateOf(false) }
+
+    val emailError = if (hasSubmitted && (!email.contains("@") || !email.contains("."))) "Enter a valid email" else null
+    val passwordError = if (hasSubmitted && password.isEmpty()) "Password is required" else null
+
+    if (isLoading) {
+        StateScreen(
+            type = StateType.LOADING,
+            message = "Logging in to your account..."
+        )
+        return
+    }
+
+    if (showErrorState) {
+        StateScreen(
+            type = StateType.ERROR,
+            title = "Login Failed",
+            message = "Invalid email or password. Please verify your credentials and try again.",
+            onPrimaryClick = { showErrorState = false },
+            onSecondaryClick = { showErrorState = false }
+        )
+        return
+    }
 
     Scaffold(
         topBar = {
@@ -102,7 +129,8 @@ fun LogInScreen(
                 label = "Email",
                 placeholder = "name@company.com",
                 leadingIcon = Icons.Filled.Email,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                errorMessage = emailError
             )
 
             WavesTextField(
@@ -112,6 +140,7 @@ fun LogInScreen(
                 placeholder = "Enter your password",
                 leadingIcon = Icons.Filled.Lock,
                 visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                errorMessage = passwordError,
                 trailingIcon = {
                     IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
                         Icon(
@@ -132,7 +161,7 @@ fun LogInScreen(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = EmeraldInk,
-                    modifier = Modifier.clickable { showDemoToast(context, "Password reset link sent (demo)") }
+                    modifier = Modifier.clickable { onNavigateToForgotPassword() }
                 )
             }
 
@@ -141,49 +170,27 @@ fun LogInScreen(
             WavesPrimaryButton(
                 text = "LOG IN",
                 onClick = {
-                    showDemoToast(context, "Welcome back Rahul!")
-                    onNavigateToDashboard()
+                    hasSubmitted = true
+                    if (email.contains("@") && email.contains(".") && password.isNotEmpty()) {
+                        if (password == "error") {
+                            showErrorState = true
+                        } else {
+                            isLoading = true
+                            coroutineScope.launch {
+                                delay(600)
+                                isLoading = false
+                                showDemoToast(context, "Welcome back!")
+                                onNavigateToDashboard()
+                            }
+                        }
+                    }
                 }
             )
 
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                HorizontalDivider(modifier = Modifier.weight(1f), color = BorderGray)
-                Text(
-                    text = "OR",
-                    fontSize = 12.sp,
-                    color = TextSecondary,
-                    modifier = Modifier.padding(horizontal = 12.dp)
-                )
-                HorizontalDivider(modifier = Modifier.weight(1f), color = BorderGray)
-            }
-
-            OutlinedButton(
-                onClick = {
-                    showDemoToast(context, "Google Sign-In demo")
-                    onNavigateToDashboard()
-                },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp)
-                    .testTag("google_login_button"),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, BorderGray)
-            ) {
-                Text(
-                    text = "Continue with Google",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TextPrimary
-                )
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp),
+                    .padding(vertical = 16.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -200,8 +207,6 @@ fun LogInScreen(
                     modifier = Modifier.clickable { onNavigateToSignUp() }
                 )
             }
-
-            Spacer(modifier = Modifier.height(20.dp))
         }
     }
 }

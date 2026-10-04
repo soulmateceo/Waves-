@@ -33,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -41,6 +42,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.components.StateScreen
+import com.example.components.StateType
 import com.example.components.WavesCard
 import com.example.components.WavesHeader
 import com.example.components.WavesPrimaryButton
@@ -54,6 +57,8 @@ import com.example.ui.theme.InputBorderGray
 import com.example.ui.theme.OnPrimary
 import com.example.ui.theme.SurfaceColor
 import com.example.ui.theme.TextSecondary
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun AddEditClientScreen(
@@ -62,8 +67,32 @@ fun AddEditClientScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val isEditMode = clientId != null && clientId != "new"
     val existingClient = SampleData.clients.find { it.id == clientId }
+
+    var isSaving by remember { mutableStateOf(false) }
+    var showSuccess by remember { mutableStateOf(false) }
+    var hasSubmitted by remember { mutableStateOf(false) }
+
+    if (isSaving) {
+        StateScreen(
+            type = StateType.LOADING,
+            message = "Saving client details..."
+        )
+        return
+    }
+
+    if (showSuccess) {
+        StateScreen(
+            type = StateType.SUCCESS,
+            title = "Client Saved!",
+            message = "Client details have been recorded successfully.",
+            primaryButtonText = "DONE",
+            onPrimaryClick = onNavigateBack
+        )
+        return
+    }
 
     var name by remember { mutableStateOf(existingClient?.name ?: "") }
     var email by remember { mutableStateOf(existingClient?.email ?: "") }
@@ -116,12 +145,14 @@ fun AddEditClientScreen(
             SectionHeader(title = "BASIC INFORMATION")
             WavesCard {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    val nameError = if (hasSubmitted && name.isBlank()) "Client name is required" else null
                     WavesTextField(
                         value = name,
                         onValueChange = { name = it },
                         label = "Client Name *",
                         placeholder = "e.g. Rahul Sharma",
-                        leadingIcon = Icons.Filled.Person
+                        leadingIcon = Icons.Filled.Person,
+                        errorMessage = nameError
                     )
                     WavesTextField(
                         value = email,
@@ -254,8 +285,15 @@ fun AddEditClientScreen(
             WavesPrimaryButton(
                 text = "SAVE CLIENT",
                 onClick = {
-                    showDemoToast(context, "Client saved successfully!")
-                    onNavigateBack()
+                    hasSubmitted = true
+                    if (name.isNotBlank()) {
+                        isSaving = true
+                        coroutineScope.launch {
+                            delay(600)
+                            isSaving = false
+                            showSuccess = true
+                        }
+                    }
                 }
             )
 

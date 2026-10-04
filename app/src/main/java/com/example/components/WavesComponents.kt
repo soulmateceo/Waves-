@@ -25,6 +25,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.People
@@ -42,10 +43,15 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -308,42 +314,112 @@ fun WavesTextField(
     visualTransformation: VisualTransformation = VisualTransformation.None,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     singleLine: Boolean = true,
-    maxLines: Int = 1
+    maxLines: Int = 1,
+    errorMessage: String? = null
 ) {
+    var isFocused by remember { mutableStateOf(false) }
+    val isError = !errorMessage.isNullOrEmpty()
+    val isFilled = value.isNotEmpty()
+
+    val borderColor = when {
+        isError -> Color(0xFFDC2626)
+        isFocused -> Color(0xFF00D4B8)
+        isFilled -> Color(0xFF064E3B)
+        else -> Color(0xFF9CA3AF)
+    }
+
+    val borderWidth = when {
+        isError || isFocused -> 2.dp
+        else -> 1.5.dp
+    }
+
+    val leadingIconTint = when {
+        isError -> Color(0xFFDC2626)
+        isFocused -> Color(0xFF00D4B8)
+        else -> Color(0xFF6B7280)
+    }
+
     Column(modifier = modifier.fillMaxWidth()) {
         Text(
             text = label,
             fontSize = 12.sp,
             fontWeight = FontWeight.Medium,
-            color = TextSecondary,
+            color = Color(0xFF6B7280),
             modifier = Modifier.padding(bottom = 6.dp)
         )
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
-            placeholder = placeholder?.let { { Text(it, color = TextSecondary.copy(alpha = 0.6f), fontSize = 14.sp) } },
+            placeholder = placeholder?.let {
+                {
+                    Text(
+                        text = it,
+                        color = Color(0xFF9CA3AF),
+                        fontSize = 14.sp
+                    )
+                }
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .then(if (singleLine) Modifier.height(56.dp) else Modifier)
+                .onFocusChanged { isFocused = it.isFocused }
+                .border(borderWidth, borderColor, RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(12.dp))
                 .testTag("input_${label.lowercase().replace(" ", "_")}"),
             shape = RoundedCornerShape(12.dp),
             leadingIcon = leadingIcon?.let {
-                { Icon(it, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(20.dp)) }
+                {
+                    Icon(
+                        imageVector = it,
+                        contentDescription = null,
+                        tint = leadingIconTint,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             },
-            trailingIcon = trailingIcon,
+            trailingIcon = if (isError) {
+                {
+                    Icon(
+                        imageVector = Icons.Filled.Error,
+                        contentDescription = "Error",
+                        tint = Color(0xFFDC2626),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            } else {
+                trailingIcon
+            },
             visualTransformation = visualTransformation,
             keyboardOptions = keyboardOptions,
             singleLine = singleLine,
             maxLines = maxLines,
+            isError = isError,
             colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = SurfaceColor,
-                unfocusedContainerColor = SurfaceColor,
-                focusedBorderColor = AccentCyan,
-                unfocusedBorderColor = InputBorderGray,
-                focusedTextColor = TextPrimary,
-                unfocusedTextColor = TextPrimary
+                focusedContainerColor = Color.White,
+                unfocusedContainerColor = Color.White,
+                errorContainerColor = Color.White,
+                focusedBorderColor = Color.Transparent,
+                unfocusedBorderColor = Color.Transparent,
+                errorBorderColor = Color.Transparent,
+                focusedTextColor = Color(0xFF0A2540),
+                unfocusedTextColor = Color(0xFF0A2540),
+                errorTextColor = Color(0xFF0A2540),
+                focusedPlaceholderColor = Color(0xFF9CA3AF),
+                unfocusedPlaceholderColor = Color(0xFF9CA3AF),
+                errorPlaceholderColor = Color(0xFF9CA3AF),
+                cursorColor = Color(0xFF00D4B8)
             )
         )
+
+        if (isError) {
+            Text(
+                text = errorMessage ?: "",
+                color = Color(0xFFDC2626),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(top = 4.dp, start = 4.dp)
+            )
+        }
     }
 }
 
@@ -478,47 +554,52 @@ fun EmptyStateView(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(24.dp),
+            .padding(24.dp)
+            .testTag("empty_state_view"),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Box(
-            modifier = Modifier
-                .size(72.dp)
-                .clip(CircleShape)
-                .background(Color(0xFFE6F4EA)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = EmeraldInk,
-                modifier = Modifier.size(36.dp)
-            )
-        }
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = Color(0xFF9CA3AF),
+            modifier = Modifier.size(80.dp)
+        )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
             text = title,
             fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.SemiBold,
             color = TextPrimary,
             textAlign = TextAlign.Center
         )
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = message,
-            fontSize = 13.sp,
+            fontSize = 14.sp,
             color = TextSecondary,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            modifier = Modifier.padding(horizontal = 16.dp)
         )
         if (buttonText != null && onButtonClick != null) {
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
             Button(
                 onClick = onButtonClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
                 shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = EmeraldInk)
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = EmeraldInk,
+                    contentColor = OnPrimary
+                )
             ) {
-                Text(buttonText, fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = buttonText,
+                    style = ButtonTextStyle,
+                    color = OnPrimary
+                )
             }
         }
     }

@@ -38,6 +38,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,6 +52,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
+import com.example.components.StateScreen
+import com.example.components.StateType
 import com.example.components.WavesCard
 import com.example.components.WavesHeader
 import com.example.components.WavesPrimaryButton
@@ -65,6 +68,8 @@ import com.example.ui.theme.OnPrimary
 import com.example.ui.theme.SurfaceColor
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun BusinessProfileScreen(
@@ -72,7 +77,30 @@ fun BusinessProfileScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val initial = SampleData.defaultBusiness
+
+    var isSaving by remember { mutableStateOf(false) }
+    var showSuccess by remember { mutableStateOf(false) }
+
+    if (isSaving) {
+        StateScreen(
+            type = StateType.LOADING,
+            message = "Saving business profile..."
+        )
+        return
+    }
+
+    if (showSuccess) {
+        StateScreen(
+            type = StateType.SUCCESS,
+            title = "Profile Saved!",
+            message = "Your business profile and settings have been updated.",
+            primaryButtonText = "DONE",
+            onPrimaryClick = onNavigateBack
+        )
+        return
+    }
 
     var businessName by remember { mutableStateOf(initial.name) }
     var tagline by remember { mutableStateOf(initial.tagline) }
@@ -518,8 +546,12 @@ fun BusinessProfileScreen(
             WavesPrimaryButton(
                 text = "SAVE CHANGES",
                 onClick = {
-                    showDemoToast(context, "All changes saved successfully!")
-                    onNavigateBack()
+                    isSaving = true
+                    coroutineScope.launch {
+                        delay(600)
+                        isSaving = false
+                        showSuccess = true
+                    }
                 }
             )
 

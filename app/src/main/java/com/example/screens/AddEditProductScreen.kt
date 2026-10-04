@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -39,6 +40,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.components.StateScreen
+import com.example.components.StateType
 import com.example.components.WavesCard
 import com.example.components.WavesHeader
 import com.example.components.WavesPrimaryButton
@@ -52,6 +55,8 @@ import com.example.ui.theme.InputBorderGray
 import com.example.ui.theme.OnPrimary
 import com.example.ui.theme.SurfaceColor
 import com.example.ui.theme.TextSecondary
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun AddEditProductScreen(
@@ -60,8 +65,32 @@ fun AddEditProductScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val isEditMode = productId != null && productId != "new"
     val existingProduct = SampleData.products.find { it.id == productId }
+
+    var isSaving by remember { mutableStateOf(false) }
+    var showSuccess by remember { mutableStateOf(false) }
+    var hasSubmitted by remember { mutableStateOf(false) }
+
+    if (isSaving) {
+        StateScreen(
+            type = StateType.LOADING,
+            message = "Saving product details..."
+        )
+        return
+    }
+
+    if (showSuccess) {
+        StateScreen(
+            type = StateType.SUCCESS,
+            title = "Product Saved!",
+            message = "Product details have been recorded successfully.",
+            primaryButtonText = "DONE",
+            onPrimaryClick = onNavigateBack
+        )
+        return
+    }
 
     var name by remember { mutableStateOf(existingProduct?.name ?: "") }
     var description by remember { mutableStateOf(existingProduct?.description ?: "") }
@@ -112,12 +141,14 @@ fun AddEditProductScreen(
             SectionHeader(title = "BASIC INFORMATION")
             WavesCard {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    val nameError = if (hasSubmitted && name.isBlank()) "Product name is required" else null
                     WavesTextField(
                         value = name,
                         onValueChange = { name = it },
                         label = "Product / Service Name *",
                         placeholder = "e.g. Website Design",
-                        leadingIcon = Icons.Filled.Inventory2
+                        leadingIcon = Icons.Filled.Inventory2,
+                        errorMessage = nameError
                     )
                     WavesTextField(
                         value = description,
@@ -223,8 +254,15 @@ fun AddEditProductScreen(
             WavesPrimaryButton(
                 text = "SAVE PRODUCT",
                 onClick = {
-                    showDemoToast(context, "Product saved successfully!")
-                    onNavigateBack()
+                    hasSubmitted = true
+                    if (name.isNotBlank()) {
+                        isSaving = true
+                        coroutineScope.launch {
+                            delay(600)
+                            isSaving = false
+                            showSuccess = true
+                        }
+                    }
                 }
             )
 

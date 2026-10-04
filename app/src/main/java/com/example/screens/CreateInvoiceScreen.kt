@@ -38,6 +38,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,6 +48,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.components.StateScreen
+import com.example.components.StateType
 import com.example.components.WavesCard
 import com.example.components.WavesHeader
 import com.example.components.WavesPrimaryButton
@@ -66,6 +69,8 @@ import com.example.ui.theme.OnPrimary
 import com.example.ui.theme.SurfaceColor
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun CreateInvoiceScreen(
@@ -75,9 +80,35 @@ fun CreateInvoiceScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var invoiceNumber by remember { mutableStateOf("INV-004") }
     var issueDate by remember { mutableStateOf("04 Oct 2026") }
     var dueDate by remember { mutableStateOf("19 Oct 2026") }
+
+    var isSaving by remember { mutableStateOf(false) }
+    var showSuccess by remember { mutableStateOf(false) }
+
+    if (isSaving) {
+        StateScreen(
+            type = StateType.LOADING,
+            message = "Generating and saving invoice..."
+        )
+        return
+    }
+
+    if (showSuccess) {
+        StateScreen(
+            type = StateType.SUCCESS,
+            title = "Invoice Created!",
+            message = "Invoice $invoiceNumber was generated successfully.",
+            primaryButtonText = "VIEW PREVIEW",
+            onPrimaryClick = {
+                showSuccess = false
+                onNavigateToPreview(invoiceNumber)
+            }
+        )
+        return
+    }
 
     val clients = SampleData.clients
     var selectedClient by remember { mutableStateOf<Client?>(clients.firstOrNull()) }
@@ -406,7 +437,12 @@ fun CreateInvoiceScreen(
             WavesPrimaryButton(
                 text = "PREVIEW & SAVE",
                 onClick = {
-                    onNavigateToPreview(invoiceNumber)
+                    isSaving = true
+                    coroutineScope.launch {
+                        delay(600)
+                        isSaving = false
+                        showSuccess = true
+                    }
                 }
             )
 
