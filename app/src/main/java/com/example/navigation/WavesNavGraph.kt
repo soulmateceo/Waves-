@@ -21,6 +21,8 @@ import com.example.screens.ClientDetailScreen
 import com.example.screens.ClientListScreen
 import com.example.screens.CreateInvoiceScreen
 import com.example.screens.DashboardScreen
+import com.example.screens.DeleteAccountOtpScreen
+import com.example.screens.DeleteAccountReasonScreen
 import com.example.screens.EmailVerificationScreen
 import com.example.screens.ForgotPasswordScreen
 import com.example.screens.InvoiceDetailScreen
@@ -58,6 +60,8 @@ object WavesDestinations {
     const val REPORTS = "reports"
     const val TAX_SETTINGS = "tax_settings"
     const val BANK_SETTINGS = "bank_settings"
+    const val DELETE_ACCOUNT_REASON = "delete_account_reason"
+    const val DELETE_ACCOUNT_OTP = "delete_account_otp"
 }
 
 @Composable
@@ -237,6 +241,7 @@ fun WavesNavGraph(
                 onNavigateToBankSettings = { navController.navigate(WavesDestinations.BANK_SETTINGS) },
                 onNavigateToProducts = { navController.navigate(WavesDestinations.PRODUCTS) },
                 onNavigateToReports = { navController.navigate(WavesDestinations.REPORTS) },
+                onNavigateToDeleteAccount = { navController.navigate(WavesDestinations.DELETE_ACCOUNT_REASON) },
                 onNavigateToLogIn = {
                     FirebaseAuthRepository.signOut()
                     navController.navigate(WavesDestinations.LOG_IN) {
@@ -350,6 +355,33 @@ fun WavesNavGraph(
         composable(WavesDestinations.BANK_SETTINGS) {
             BankAccountScreen(
                 onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(WavesDestinations.DELETE_ACCOUNT_REASON) {
+            DeleteAccountReasonScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onOtpSent = { reason ->
+                    navController.currentBackStackEntry?.savedStateHandle?.set("deletion_reason", reason)
+                    navController.navigate(WavesDestinations.DELETE_ACCOUNT_OTP)
+                }
+            )
+        }
+
+        composable(WavesDestinations.DELETE_ACCOUNT_OTP) {
+            val reason = navController.previousBackStackEntry
+                ?.savedStateHandle
+                ?.get<String>("deletion_reason")
+                .orEmpty()
+            DeleteAccountOtpScreen(
+                reason = reason,
+                onNavigateBack = { navController.popBackStack() },
+                onAccountDeleted = {
+                    FirebaseAuthRepository.signOut()
+                    navController.navigate(WavesDestinations.LANDING) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
             )
         }
     }

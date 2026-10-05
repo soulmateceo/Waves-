@@ -18,3 +18,4 @@ local.properties
 debug.keystore
 /my-upload-key.jks
 /credentials/
+/functions/node_modules/

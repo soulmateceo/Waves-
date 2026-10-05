@@ -1,5 +1,8 @@
 package com.example.screens
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -19,6 +22,7 @@ import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.Business
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Inventory2
@@ -66,6 +70,7 @@ fun SettingsHomeScreen(
     onNavigateToBankSettings: () -> Unit,
     onNavigateToProducts: () -> Unit,
     onNavigateToReports: () -> Unit,
+    onNavigateToDeleteAccount: () -> Unit,
     onNavigateToLogIn: () -> Unit,
     onNavigateToTab: (WavesNavTab) -> Unit,
     modifier: Modifier = Modifier
@@ -195,6 +200,15 @@ fun SettingsHomeScreen(
                         labelColor = DangerRed,
                         onClick = onNavigateToLogIn
                     )
+                    HorizontalDivider(color = BorderGray)
+                    SettingsRowItem(
+                        icon = Icons.Filled.DeleteForever,
+                        label = "Delete Account",
+                        subtitle = "Permanently delete your account and data",
+                        iconTint = DangerRed,
+                        labelColor = DangerRed,
+                        onClick = onNavigateToDeleteAccount
+                    )
                 }
             }
 
@@ -212,7 +226,18 @@ fun SettingsHomeScreen(
                     SettingsRowItem(
                         icon = Icons.Filled.Policy,
                         label = "Privacy Policy",
-                        onClick = { showDemoToast(context, "Privacy Policy: Waves adheres to standard data privacy rules.") }
+                        onClick = {
+                            try {
+                                context.startActivity(
+                                    Intent(
+                                        Intent.ACTION_VIEW,
+                                        Uri.parse("https://waves.metricfluxsolutions.com/privacypolicy")
+                                    )
+                                )
+                            } catch (_: ActivityNotFoundException) {
+                                showDemoToast(context, "No browser is available to open the Privacy Policy.")
+                            }
+                        }
                     )
                     HorizontalDivider(color = BorderGray)
                     SettingsRowItem(
@@ -224,7 +249,7 @@ fun SettingsHomeScreen(
                     SettingsRowItem(
                         icon = Icons.Filled.Info,
                         label = "Version",
-                        subtitle = "1.0.0 (Production)",
+                        subtitle = "1.2 (Production)",
                         showArrow = false,
                         onClick = {}
                     )

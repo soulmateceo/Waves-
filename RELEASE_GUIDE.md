@@ -3,7 +3,7 @@
 ## App and Firebase identity
 
 - Android application ID / Play Console package: `com.waves.androidapp`
-- Current release version: `1.1` (`versionCode` 2; use a code greater than every version previously uploaded to any Play track)
+- Current release version: `1.2` (`versionCode` 3; use a code greater than every version previously uploaded to any Play track)
 - Firebase Android app: `1:1088277592046:android:1fccb895b44a59bd6f80ff`
 - Firebase configuration: `app/google-services.json`
 - Android Gradle namespace remains `com.example`; it is separate from the installed application ID and keeps existing source packages stable.
@@ -94,8 +94,8 @@ The project is linked to a billing account. Storage for Firebase requires the Bl
 
 As of August 31, 2026, new apps and updates must target Android 16 (API 36) or higher. This release is configured for target API 36. Before uploading, check Play Console and ensure the version code exceeds every code already used in all tracks.
 
-This app creates user accounts. Google Play requires an in-app account deletion path and an external web resource for account/data deletion. The current Settings screen does not implement account deletion, and its Privacy Policy item is still a placeholder; complete these policy requirements and the Play Console Data safety form before submission. See [Google Play account deletion requirements](https://support.google.com/googleplay/android-developer/answer/13327111).
+This app creates user accounts. Settings links to the supplied Privacy Policy URL, and the in-app account deletion flow sends a six-digit email code and removes the user's Firebase Auth account, Firestore data, and Storage files. Google Play also requires an external web resource for account/data deletion; add its public URL in Play Console and complete the Data safety form before submission. See [Google Play account deletion requirements](https://support.google.com/googleplay/android-developer/answer/13327111).
 
 ## Verified status
 
-The release APK and AAB were built and signed with the local upload key. The APK signature was verified with `apksigner`, and the AAB signature was verified with `jarsigner` and Google's `bundletool`; both use the upload certificate fingerprints listed above. All host-side unit tests and the release lint/build passed. The generated artifacts are local build outputs and are not committed.
+The release APK and AAB were built and signed with the local upload key. The APK signature was verified with `apksigner`, and the AAB signature was verified with `jarsigner` and Google's `bundletool`; both use the upload certificate fingerprints listed above. The generated artifacts are local build outputs and are not committed.
