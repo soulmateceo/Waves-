@@ -30,8 +30,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,6 +54,7 @@ import com.example.components.StateType
 import com.example.data.FirestoreDataRepository
 import com.example.data.FirestoreState
 import com.example.data.InvoiceStatus
+import com.example.data.DocumentExports
 import com.example.data.ReportDateUtils
 import com.example.ui.theme.BackgroundColor
 import com.example.ui.theme.DangerRed
@@ -63,6 +65,11 @@ import com.example.ui.theme.SuccessGreen
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.WarningAmber
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 
 @Composable
 fun ReportsScreen(
@@ -72,8 +79,8 @@ fun ReportsScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val months = listOf("Aug 2026", "Sep 2026", "Oct 2026", "Nov 2026")
-    var currentMonthIndex by remember { mutableIntStateOf(2) }
+    val coroutineScope = rememberCoroutineScope()
+    var isExporting by remember { mutableStateOf(false) }
     val invoiceState by remember { FirestoreDataRepository.observeInvoices() }
         .collectAsState(initial = FirestoreState.Loading)
     val allInvoices = when (val state = invoiceState) {
@@ -87,14 +94,19 @@ fun ReportsScreen(
         }
         is FirestoreState.Data -> state.value
     }
-    val monthParts = months[currentMonthIndex].split(' ')
-    val reportMonthKey = ReportDateUtils.monthKey(
-        monthParts[1].toInt(),
-        listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
-            .indexOf(monthParts[0])
-    )
+    val currentDate = remember { ReportDateUtils.currentDate() }
+    val months = remember(allInvoices) {
+        val earliestInvoiceDate = allInvoices.mapNotNull { ReportDateUtils.parse(it.issueDate) }.minOrNull()
+        ReportDateUtils.monthKeys(earliestInvoiceDate ?: currentDate, currentDate)
+            .ifEmpty { listOf(ReportDateUtils.monthKey(currentDate)) }
+    }
+    var reportMonthKey by remember { mutableStateOf(ReportDateUtils.monthKey(currentDate)) }
+    val currentMonthIndex = months.indexOf(reportMonthKey).takeIf { it >= 0 } ?: months.lastIndex
+    val monthLabel = ReportDateUtils.displayMonth(reportMonthKey) ?: reportMonthKey
     val monthInvoices = allInvoices.filter { ReportDateUtils.monthKey(it.issueDate) == reportMonthKey }
-    val activeMonthInvoices = monthInvoices.filterNot { it.status == InvoiceStatus.CANCELLED }
+    val activeMonthInvoices = monthInvoices.filterNot {
+        it.status == InvoiceStatus.CANCELLED || it.status == InvoiceStatus.WRITTEN_OFF
+    }
     val invoicedAmount = activeMonthInvoices.sumOf { it.grandTotal }
     val collectedAmount = allInvoices.sumOf { invoice ->
         invoice.payments.filter { ReportDateUtils.monthKey(it.date) == reportMonthKey }
@@ -108,7 +120,9 @@ fun ReportsScreen(
         "Overdue" to monthInvoices.count { it.status == InvoiceStatus.OVERDUE },
         "Cancelled" to monthInvoices.count { it.status == InvoiceStatus.CANCELLED || it.status == InvoiceStatus.WRITTEN_OFF }
     )
-    val topClients = monthInvoices.filterNot { it.status == InvoiceStatus.CANCELLED }
+    val topClients = monthInvoices.filterNot {
+        it.status == InvoiceStatus.CANCELLED || it.status == InvoiceStatus.WRITTEN_OFF
+    }
         .groupBy { it.clientId }
         .map { (_, invoices) ->
             Triple(invoices.first().clientName, invoices.size, invoices.sumOf { it.grandTotal })
@@ -163,7 +177,7 @@ fun ReportsScreen(
                 ) {
                     IconButton(
                         onClick = {
-                            if (currentMonthIndex > 0) currentMonthIndex--
+                            if (currentMonthIndex > 0) reportMonthKey = months[currentMonthIndex - 1]
                         },
                         enabled = currentMonthIndex > 0
                     ) {
@@ -176,7 +190,7 @@ fun ReportsScreen(
                     }
 
                     Text(
-                        text = months[currentMonthIndex],
+                        text = monthLabel,
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
@@ -184,9 +198,9 @@ fun ReportsScreen(
 
                     IconButton(
                         onClick = {
-                            if (currentMonthIndex < months.size - 1) currentMonthIndex++
+                            if (currentMonthIndex < months.lastIndex) reportMonthKey = months[currentMonthIndex + 1]
                         },
-                        enabled = currentMonthIndex < months.size - 1
+                        enabled = currentMonthIndex < months.lastIndex
                     ) {
                         Icon(
                             Icons.Filled.ArrowForwardIos,
@@ -309,14 +323,62 @@ fun ReportsScreen(
                 WavesSecondaryButton(
                     text = "Export CSV",
                     icon = Icons.Filled.Download,
-                    onClick = { showDemoToast(context, "CSV Report exported to Downloads") },
+                    onClick = {
+                        if (!isExporting) coroutineScope.launch {
+                            isExporting = true
+                            try {
+                                val reportFile = withContext(Dispatchers.IO) {
+                                    DocumentExports.createReportCsv(context, reportMonthKey, allInvoices)
+                                }
+                                val location = withContext(Dispatchers.IO) {
+                                    DocumentExports.saveToDownloads(
+                                        context,
+                                        reportFile,
+                                        "waves-report-$reportMonthKey.csv",
+                                        "text/csv"
+                                    )
+                                }
+                                showDemoToast(context, "CSV report saved to $location")
+                            } catch (exception: CancellationException) {
+                                throw exception
+                            } catch (exception: Exception) {
+                                showDemoToast(context, exception.localizedMessage ?: "Unable to export CSV report.")
+                            } finally {
+                                isExporting = false
+                            }
+                        }
+                    },
                     modifier = Modifier.weight(1f)
                 )
 
                 WavesSecondaryButton(
                     text = "Export PDF",
                     icon = Icons.Filled.PictureAsPdf,
-                    onClick = { showDemoToast(context, "PDF Report generated") },
+                    onClick = {
+                        if (!isExporting) coroutineScope.launch {
+                            isExporting = true
+                            try {
+                                val reportFile: File = withContext(Dispatchers.IO) {
+                                    DocumentExports.createReportPdf(context, reportMonthKey, allInvoices)
+                                }
+                                val location = withContext(Dispatchers.IO) {
+                                    DocumentExports.saveToDownloads(
+                                        context,
+                                        reportFile,
+                                        "waves-report-$reportMonthKey.pdf",
+                                        "application/pdf"
+                                    )
+                                }
+                                showDemoToast(context, "PDF report saved to $location")
+                            } catch (exception: CancellationException) {
+                                throw exception
+                            } catch (exception: Exception) {
+                                showDemoToast(context, exception.localizedMessage ?: "Unable to export PDF report.")
+                            } finally {
+                                isExporting = false
+                            }
+                        }
+                    },
                     modifier = Modifier.weight(1f)
                 )
             }

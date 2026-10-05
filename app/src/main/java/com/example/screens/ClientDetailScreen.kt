@@ -53,6 +53,7 @@ import com.example.components.StateScreen
 import com.example.components.StateType
 import com.example.data.FirestoreDataRepository
 import com.example.data.FirestoreState
+import com.example.data.DocumentExports
 import com.example.ui.theme.BackgroundColor
 import com.example.ui.theme.DangerRed
 import com.example.ui.theme.EmeraldInk
@@ -61,6 +62,9 @@ import com.example.ui.theme.SuccessGreen
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun ClientDetailScreen(
@@ -134,10 +138,33 @@ fun ClientDetailScreen(
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Send Statement") },
+                                text = { Text("Share Statement") },
                                 onClick = {
                                     menuExpanded = false
-                                    showDemoToast(context, "Statement sent via email")
+                                    coroutineScope.launch {
+                                        try {
+                                            val pdf = withContext(Dispatchers.IO) {
+                                                DocumentExports.createClientStatementPdf(
+                                                    context,
+                                                    client,
+                                                    clientInvoices
+                                                )
+                                            }
+                                            DocumentExports.share(
+                                                context,
+                                                pdf,
+                                                "application/pdf",
+                                                "Share ${client.name}'s statement"
+                                            )
+                                        } catch (exception: CancellationException) {
+                                            throw exception
+                                        } catch (exception: Exception) {
+                                            showDemoToast(
+                                                context,
+                                                exception.localizedMessage ?: "Unable to share client statement."
+                                            )
+                                        }
+                                    }
                                 }
                             )
                             DropdownMenuItem(

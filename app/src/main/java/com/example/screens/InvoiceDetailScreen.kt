@@ -49,7 +49,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,6 +71,7 @@ import com.example.components.showDemoToast
 import com.example.data.InvoiceStatus
 import com.example.data.FirestoreDataRepository
 import com.example.data.FirestoreState
+import com.example.data.DocumentExports
 import com.example.data.PaymentRecord
 import com.example.data.ReportDateUtils
 import com.example.data.SampleData
@@ -88,6 +88,8 @@ import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -128,6 +130,23 @@ fun InvoiceDetailScreen(
                 FirestoreDataRepository.updateInvoiceStatus(invoice.id, status)
             } catch (exception: Exception) {
                 showDemoToast(context, exception.localizedMessage ?: "Unable to update invoice.")
+            }
+        }
+    }
+
+    fun shareInvoicePdf() {
+        coroutineScope.launch {
+            try {
+                val pdf = withContext(Dispatchers.IO) {
+                    val business = FirestoreDataRepository.getBusinessProfile()
+                    val client = FirestoreDataRepository.getClient(invoice.clientId)
+                    DocumentExports.createInvoicePdf(context, invoice, business, client)
+                }
+                DocumentExports.share(context, pdf, "application/pdf", "Share invoice ${invoice.id}")
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                showDemoToast(context, exception.localizedMessage ?: "Unable to share invoice PDF.")
             }
         }
     }
@@ -464,14 +483,17 @@ fun InvoiceDetailScreen(
                         text = "Share",
                         icon = Icons.Filled.Share,
                         isPrimary = false,
-                        onClick = { showDemoToast(context, "Share sheet opened (demo)") },
+                        onClick = ::shareInvoicePdf,
                         modifier = Modifier.weight(1f)
                     )
                     ActionButtonItem(
-                        text = "Copy Link",
+                        text = "Copy Invoice #",
                         icon = Icons.Filled.Link,
                         isPrimary = false,
-                        onClick = { showDemoToast(context, "Invoice link copied!") },
+                        onClick = {
+                            DocumentExports.copyInvoiceNumber(context, invoice.id)
+                            showDemoToast(context, "Invoice number copied")
+                        },
                         modifier = Modifier.weight(1f)
                     )
                 }

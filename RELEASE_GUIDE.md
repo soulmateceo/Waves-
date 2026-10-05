@@ -47,12 +47,13 @@ Register the upload certificate fingerprint where required by Firebase/Google se
 
 ## Build release artifacts
 
-Load the actual passwords interactively from the password manager; do not put literal values in shell history:
+Load signing values from the ignored local credentials file; do not print or paste the values:
 
 ```bash
-export KEYSTORE_PATH="$PWD/my-upload-key.jks"
-read -rsp "Keystore password: " STORE_PASSWORD; printf '\n'; export STORE_PASSWORD
-read -rsp "Key password: " KEY_PASSWORD; printf '\n'; export KEY_PASSWORD
+set -a
+. credentials/signing.env
+set +a
+export KEYSTORE_PATH="$PWD/credentials/my-upload-key.jks"
 ./gradlew :app:assembleRelease :app:bundleRelease
 unset STORE_PASSWORD KEY_PASSWORD
 ```
@@ -66,7 +67,7 @@ Artifacts under `app/build/outputs/` are local build outputs and are not committ
 
 ## Firebase Backend
 
-The Firebase CLI project is `waves-64217` in `.firebaserc`. The app uses Email/Password authentication; enable that provider under Firebase Console → Authentication → Sign-in method. Verification and password-reset emails currently use Firebase's built-in email delivery. Custom SMTP is not configured yet.
+The Firebase CLI project is `waves-64217` in `.firebaserc`. Email/Password authentication is enabled by the `auth.providers.emailPassword` setting in `firebase.json`. Verification and password-reset emails currently use Firebase's built-in email delivery. Custom SMTP is not configured yet.
 
 Business data is scoped to the authenticated user's UID:
 
@@ -79,13 +80,15 @@ Business data is scoped to the authenticated user's UID:
 
 New accounts start with empty business data; no sample clients, bank details, or invoices are seeded. Firestore and Storage rules require a verified account and restrict records/files to their owner. The signup metadata rule permits only the exact terms-consent document before email verification.
 
-Firestore region selected for this project: `nam5` (US multi-region). Firestore provisioning has not completed: the project currently returns HTTP 403 because the Firestore API is disabled. Before real signups/data writes can work:
+Firestore and Storage are provisioned for project `waves-64217`:
 
-1. Enable the Firestore API for project `waves-64217` in [Google Cloud Console](https://console.cloud.google.com/apis/library/firestore.googleapis.com?project=waves-64217).
-2. Create the `(default)` Firestore database in `nam5` (Standard edition) in Firebase Console, or retry `firebase firestore:databases:create '(default)' --location nam5 --edition standard --delete-protection ENABLED --project waves-64217` after enabling the API.
-3. Enable Firebase Storage and confirm its default bucket is `waves-64217.firebasestorage.app`.
-4. Deploy rules with `firebase deploy --only firestore:rules,storage --project waves-64217`.
+- Firestore: `(default)` database, Standard edition, `nam5` (US multi-region), with delete protection enabled.
+- Storage: default bucket `waves-64217.firebasestorage.app`, Standard storage class, `US` multi-region.
+- Authentication: Email/Password provider enabled.
+- Security rules: `firestore.rules` and `storage.rules` have been deployed.
+
+The project is linked to a billing account. Storage for Firebase requires the Blaze pay-as-you-go plan under Firebase's current pricing requirements; review the billing plan and usage limits before production use. To deploy backend config and rules later, run `firebase deploy --only auth,firestore:rules,storage --project waves-64217`.
 
 ## Verified status
 
-At the time this guide was written, the release APK exists and its signature was verified with `apksigner`. Its package is `com.waves.androidapp`, and its signer SHA-1 matches the upload certificate above. An AAB was not present in the output directory at verification time; run the combined release command above before uploading a bundle to Play Console.
+The release APK and AAB were built and signed with the local upload key. The APK signature was verified with `apksigner`, and the AAB signature was verified with `jarsigner`; both use the upload certificate fingerprints listed above. The focused host-side unit tests and release lint/build passed. The generated artifacts are local build outputs and are not committed.

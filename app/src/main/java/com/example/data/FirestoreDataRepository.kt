@@ -503,9 +503,8 @@ object FirestoreDataRepository {
             terms = valueString("terms"),
             payments = paymentMaps.orEmpty().mapNotNull { (it as? Map<*, *>)?.toPaymentRecord() }
         )
-        val dueDate = ReportDateUtils.parse(invoice.dueDate)
         return if (
-            invoice.balanceDue > 0.0 && dueDate?.before(ReportDateUtils.currentDate()) == true &&
+            invoice.balanceDue > 0.0 && ReportDateUtils.isBeforeToday(invoice.dueDate) &&
             (invoice.status == InvoiceStatus.PENDING || invoice.status == InvoiceStatus.HALF_PAID)
         ) {
             invoice.copy(status = InvoiceStatus.OVERDUE)

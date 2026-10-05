@@ -33,7 +33,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,6 +60,7 @@ import com.example.data.FirestoreDataRepository
 import com.example.data.FirestoreState
 import com.example.data.BusinessProfile
 import com.example.data.Client
+import com.example.data.DocumentExports
 import com.example.data.Invoice
 import com.example.data.SampleData
 import com.example.ui.theme.BackgroundColor
@@ -66,6 +70,10 @@ import com.example.ui.theme.OnPrimary
 import com.example.ui.theme.SurfaceColor
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun InvoicePreviewScreen(
@@ -75,6 +83,8 @@ fun InvoicePreviewScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    var isExporting by remember { mutableStateOf(false) }
     val invoiceState by remember(invoiceId) { FirestoreDataRepository.observeInvoice(invoiceId) }
         .collectAsState(initial = FirestoreState.Loading)
     val businessState by remember { FirestoreDataRepository.observeBusinessProfile() }
@@ -103,6 +113,37 @@ fun InvoicePreviewScreen(
         return
     }
 
+    fun exportInvoice(share: Boolean) {
+        if (isExporting) return
+        coroutineScope.launch {
+            isExporting = true
+            try {
+                val pdf = withContext(Dispatchers.IO) {
+                    DocumentExports.createInvoicePdf(context, invoice, business, client)
+                }
+                if (share) {
+                    DocumentExports.share(context, pdf, "application/pdf", "Share invoice ${invoice.id}")
+                } else {
+                    val location = withContext(Dispatchers.IO) {
+                        DocumentExports.saveToDownloads(
+                            context,
+                            pdf,
+                            "invoice-${invoice.id}.pdf",
+                            "application/pdf"
+                        )
+                    }
+                    showDemoToast(context, "Invoice PDF saved to $location")
+                }
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                showDemoToast(context, exception.localizedMessage ?: "Unable to export invoice PDF.")
+            } finally {
+                isExporting = false
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             WavesHeader(
@@ -110,7 +151,7 @@ fun InvoicePreviewScreen(
                 onBackClick = onNavigateBack,
                 actions = {
                     IconButton(
-                        onClick = { showDemoToast(context, "Sharing PDF...") },
+                        onClick = { exportInvoice(share = true) },
                         modifier = Modifier.testTag("preview_share_header_button")
                     ) {
                         Icon(
@@ -453,7 +494,7 @@ fun InvoicePreviewScreen(
                 text = "DOWNLOAD PDF",
                 icon = Icons.Filled.Download,
                 onClick = {
-                    showDemoToast(context, "PDF saved to Downloads folder!")
+                    exportInvoice(share = false)
                 }
             )
 
@@ -464,14 +505,17 @@ fun InvoicePreviewScreen(
                 WavesSecondaryButton(
                     text = "SHARE",
                     icon = Icons.Filled.Share,
-                    onClick = { showDemoToast(context, "Sharing PDF with client...") },
+                    onClick = { exportInvoice(share = true) },
                     modifier = Modifier.weight(1f)
                 )
 
                 WavesSecondaryButton(
-                    text = "COPY LINK",
+                    text = "COPY INVOICE #",
                     icon = Icons.Filled.Link,
-                    onClick = { showDemoToast(context, "Link copied to clipboard!") },
+                    onClick = {
+                        DocumentExports.copyInvoiceNumber(context, invoice.id)
+                        showDemoToast(context, "Invoice number copied")
+                    },
                     modifier = Modifier.weight(1f)
                 )
             }
