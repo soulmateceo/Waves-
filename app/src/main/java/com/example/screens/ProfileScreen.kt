@@ -322,22 +322,43 @@ fun ProfileScreen(
                 }
             }
 
-            ProfileMenuRow(
-                icon = Icons.Filled.Policy,
-                title = "Privacy policy",
-                onClick = {
-                    try {
-                        context.startActivity(
-                            Intent(
-                                Intent.ACTION_VIEW,
-                                Uri.parse("https://waves.metricfluxsolutions.com/privacypolicy")
-                            )
-                        )
-                    } catch (_: ActivityNotFoundException) {
-                        showDemoToast(context, "No browser is available to open the Privacy Policy.")
-                    }
+            WavesCard {
+                Column {
+                    ProfileMenuRow(
+                        icon = Icons.Filled.Policy,
+                        title = "Terms & Conditions",
+                        onClick = {
+                            try {
+                                context.startActivity(
+                                    Intent(
+                                        Intent.ACTION_VIEW,
+                                        Uri.parse("https://waves.metricfluxsolutions.com/termsandconditions")
+                                    )
+                                )
+                            } catch (_: ActivityNotFoundException) {
+                                showDemoToast(context, "No browser is available to open Terms & Conditions.")
+                            }
+                        }
+                    )
+                    ProfileDivider()
+                    ProfileMenuRow(
+                        icon = Icons.Filled.Policy,
+                        title = "Privacy policy",
+                        onClick = {
+                            try {
+                                context.startActivity(
+                                    Intent(
+                                        Intent.ACTION_VIEW,
+                                        Uri.parse("https://waves.metricfluxsolutions.com/privacypolicy")
+                                    )
+                                )
+                            } catch (_: ActivityNotFoundException) {
+                                showDemoToast(context, "No browser is available to open the Privacy Policy.")
+                            }
+                        }
+                    )
                 }
-            )
+            }
             Spacer(modifier = Modifier.height(4.dp))
         }
     }

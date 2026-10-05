@@ -1,79 +1,69 @@
 package com.example.screens
 
-import androidx.compose.foundation.BorderStroke
+import android.graphics.Bitmap
+import android.graphics.pdf.PdfRenderer
+import android.os.ParcelFileDescriptor
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.R
+import com.example.components.StateScreen
+import com.example.components.StateType
 import com.example.components.WavesHeader
 import com.example.components.WavesPrimaryButton
 import com.example.components.WavesSecondaryButton
 import com.example.components.showDemoToast
-import com.example.components.StateScreen
-import com.example.components.StateType
-import com.example.data.FirestoreDataRepository
-import com.example.data.FirestoreState
 import com.example.data.BusinessProfile
 import com.example.data.Client
 import com.example.data.DocumentExports
+import com.example.data.FirestoreDataRepository
+import com.example.data.FirestoreState
 import com.example.data.Invoice
-import com.example.data.SampleData
 import com.example.ui.theme.BackgroundColor
-import com.example.ui.theme.BorderGray
 import com.example.ui.theme.EmeraldInk
 import com.example.ui.theme.OnPrimary
-import com.example.ui.theme.SurfaceColor
-import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 @Composable
 fun InvoicePreviewScreen(
@@ -85,6 +75,13 @@ fun InvoicePreviewScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var isExporting by remember { mutableStateOf(false) }
+    var isRendering by remember { mutableStateOf(true) }
+    var renderError by remember { mutableStateOf<String?>(null) }
+    var pdfFile by remember { mutableStateOf<File?>(null) }
+    var pageCount by remember { mutableIntStateOf(0) }
+    var currentPage by remember { mutableIntStateOf(0) }
+    var pageBitmap by remember { mutableStateOf<Bitmap?>(null) }
+
     val invoiceState by remember(invoiceId) { FirestoreDataRepository.observeInvoice(invoiceId) }
         .collectAsState(initial = FirestoreState.Loading)
     val businessState by remember { FirestoreDataRepository.observeBusinessProfile() }
@@ -111,6 +108,69 @@ fun InvoicePreviewScreen(
             onPrimaryClick = onNavigateBack
         )
         return
+    }
+
+    LaunchedEffect(invoice, business, client) {
+        isRendering = true
+        renderError = null
+        pageBitmap = null
+        pdfFile?.delete()
+        pdfFile = null
+        try {
+            val generated = withContext(Dispatchers.IO) {
+                val file = DocumentExports.createInvoicePdf(context, invoice, business, client)
+                try {
+                    val count = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { descriptor ->
+                        PdfRenderer(descriptor).use { it.pageCount }
+                    }
+                    file to count
+                } catch (exception: Exception) {
+                    file.delete()
+                    throw exception
+                }
+            }
+            pdfFile = generated.first
+            pageCount = generated.second
+            currentPage = 0
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (exception: Exception) {
+            renderError = exception.localizedMessage ?: "Unable to render the invoice PDF."
+        } finally {
+            isRendering = false
+        }
+    }
+
+    LaunchedEffect(pdfFile, currentPage) {
+        val file = pdfFile ?: return@LaunchedEffect
+        try {
+            val bitmap = withContext(Dispatchers.IO) {
+                ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { descriptor ->
+                    PdfRenderer(descriptor).use { renderer ->
+                        renderer.openPage(currentPage).use { page ->
+                            val width = 900
+                            val height = width * page.height / page.width
+                            Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also {
+                                page.render(it, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                            }
+                        }
+                    }
+                }
+            }
+            pageBitmap?.recycle()
+            pageBitmap = bitmap
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (exception: Exception) {
+            renderError = exception.localizedMessage ?: "Unable to render this invoice page."
+        }
+    }
+
+    DisposableEffect(pdfFile) {
+        onDispose {
+            pageBitmap?.recycle()
+            pdfFile?.delete()
+        }
     }
 
     fun exportInvoice(share: Boolean) {
@@ -147,18 +207,14 @@ fun InvoicePreviewScreen(
     Scaffold(
         topBar = {
             WavesHeader(
-                title = "Preview",
+                title = "Invoice preview",
                 onBackClick = onNavigateBack,
                 actions = {
                     IconButton(
                         onClick = { exportInvoice(share = true) },
                         modifier = Modifier.testTag("preview_share_header_button")
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.Share,
-                            contentDescription = "Share",
-                            tint = OnPrimary
-                        )
+                        Icon(Icons.Filled.Share, contentDescription = "Share invoice", tint = OnPrimary)
                     }
                 }
             )
@@ -170,365 +226,67 @@ fun InvoicePreviewScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .verticalScroll(androidx.compose.foundation.rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // ===== PDF MOCKUP CARD =====
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(
-                        elevation = 6.dp,
-                        shape = RoundedCornerShape(8.dp),
-                        spotColor = Color(0x33000000)
+            when {
+                isRendering -> CircularProgressIndicator(color = EmeraldInk)
+                renderError != null -> Text(
+                    text = renderError.orEmpty(),
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.error
+                )
+                pageBitmap == null -> CircularProgressIndicator(color = EmeraldInk)
+                pageBitmap != null -> {
+                    Image(
+                        bitmap = pageBitmap!!.asImageBitmap(),
+                        contentDescription = "Invoice PDF page ${currentPage + 1}",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(595f / 842f)
+                            .testTag("invoice_pdf_page_preview")
                     )
-                    .border(
-                        BorderStroke(1.dp, BorderGray),
-                        RoundedCornerShape(8.dp)
-                    ),
-                shape = RoundedCornerShape(8.dp),
-                color = SurfaceColor
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(18.dp)
-                ) {
-                    // ===== HEADER =====
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFFE6F4EA)),
-                                contentAlignment = Alignment.Center
+                    if (pageCount > 1) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            IconButton(
+                                onClick = { currentPage = (currentPage - 1).coerceAtLeast(0) },
+                                enabled = currentPage > 0
                             ) {
-                                Image(
-                                    painter = painterResource(id = R.drawable.app_logo),
-                                    contentDescription = "Logo",
-                                    modifier = Modifier.size(34.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column {
-                                Text(
-                                    business.name,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = EmeraldInk
-                                )
-                                Text(
-                                    business.addressLine1,
-                                    fontSize = 11.sp,
-                                    color = TextSecondary
-                                )
-                                if (business.addressLine2.isNotBlank()) {
-                                    Text(
-                                        business.addressLine2,
-                                        fontSize = 11.sp,
-                                        color = TextSecondary
-                                    )
-                                }
-                                Text(
-                                    "${business.city}, ${business.country}",
-                                    fontSize = 11.sp,
-                                    color = TextSecondary
-                                )
-                                Text(
-                                    business.phone,
-                                    fontSize = 11.sp,
-                                    color = TextSecondary
-                                )
-                            }
-                        }
-
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(
-                                "INVOICE",
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = EmeraldInk
-                            )
-                            Text(
-                                "#${invoice.id}",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = TextPrimary
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                "Date: ${invoice.issueDate}",
-                                fontSize = 10.sp,
-                                color = TextSecondary
-                            )
-                            Text(
-                                "Due: ${invoice.dueDate}",
-                                fontSize = 10.sp,
-                                color = TextSecondary
-                            )
-                        }
-                    }
-
-                    HorizontalDivider(
-                        modifier = Modifier.padding(vertical = 12.dp),
-                        color = BorderGray
-                    )
-
-                    // ===== BILL TO =====
-                    Text(
-                        "BILL TO:",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextSecondary
-                    )
-                    Text(
-                        invoice.clientName,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-                    Text(
-                        invoice.clientEmail ?: "Email not provided",
-                        fontSize = 11.sp,
-                        color = TextSecondary
-                    )
-                    if (client != null && client.city.isNotBlank()) {
-                        Text(
-                            "${client.city}${if (client.country.isNotBlank()) ", ${client.country}" else ""}",
-                            fontSize = 11.sp,
-                            color = TextSecondary
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // ===== ITEMS TABLE HEADER =====
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = Color(0xFFF1F5F9),
-                        shape = RoundedCornerShape(4.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 6.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                "ITEM",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary,
-                                modifier = Modifier.weight(2f)
-                            )
-                            Text(
-                                "QTY",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary,
-                                modifier = Modifier.weight(0.7f),
-                                textAlign = TextAlign.Center
-                            )
-                            Text(
-                                "RATE",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary,
-                                modifier = Modifier.weight(1f),
-                                textAlign = TextAlign.End
-                            )
-                            Text(
-                                "AMOUNT",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary,
-                                modifier = Modifier.weight(1.2f),
-                                textAlign = TextAlign.End
-                            )
-                        }
-                    }
-
-                    // ===== ITEMS ROWS =====
-                    invoice.items.forEach { item ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 6.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(2f)) {
-                                Text(
-                                    item.name,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = TextPrimary
-                                )
-                                Text(
-                                    "Tax: ${item.taxRate.toInt()}%",
-                                    fontSize = 10.sp,
-                                    color = TextSecondary
-                                )
+                                Icon(Icons.Filled.ArrowBack, contentDescription = "Previous page")
                             }
                             Text(
-                                "${item.quantity.toInt()}",
-                                fontSize = 12.sp,
-                                color = TextPrimary,
-                                modifier = Modifier.weight(0.7f),
-                                textAlign = TextAlign.Center
+                                "Page ${currentPage + 1} of $pageCount",
+                                color = TextSecondary,
+                                fontSize = 13.sp
                             )
-                            Text(
-                                SampleData.formatCurrency(item.unitPrice),
-                                fontSize = 12.sp,
-                                color = TextPrimary,
-                                modifier = Modifier.weight(1f),
-                                textAlign = TextAlign.End
-                            )
-                            Text(
-                                SampleData.formatCurrency(item.total),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = TextPrimary,
-                                modifier = Modifier.weight(1.2f),
-                                textAlign = TextAlign.End
-                            )
-                        }
-                        HorizontalDivider(color = Color(0xFFF1F5F9))
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // ===== TOTALS =====
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.End
-                    ) {
-                        Row(
-                            modifier = Modifier.width(200.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text("Subtotal:", fontSize = 12.sp, color = TextSecondary)
-                            Text(
-                                SampleData.formatCurrency(invoice.subtotal),
-                                fontSize = 12.sp,
-                                color = TextPrimary
-                            )
-                        }
-                        Row(
-                            modifier = Modifier.width(200.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text("Tax:", fontSize = 12.sp, color = TextSecondary)
-                            Text(
-                                SampleData.formatCurrency(invoice.taxAmount),
-                                fontSize = 12.sp,
-                                color = TextPrimary
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(
-                            modifier = Modifier.width(200.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                "TOTAL:",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary
-                            )
-                            Text(
-                                SampleData.formatCurrency(invoice.grandTotal),
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = EmeraldInk
-                            )
+                            IconButton(
+                                onClick = { currentPage = (currentPage + 1).coerceAtMost(pageCount - 1) },
+                                enabled = currentPage < pageCount - 1
+                            ) {
+                                Icon(Icons.Filled.ArrowForward, contentDescription = "Next page")
+                            }
                         }
                     }
-
-                    HorizontalDivider(
-                        modifier = Modifier.padding(vertical = 12.dp),
-                        color = BorderGray
-                    )
-
-                    // ===== BANK DETAILS =====
-                    Text(
-                        "PAYMENT DETAILS",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextSecondary
-                    )
-                    Text(
-                        "Bank: ${business.bankName} · A/C: ${business.accountNumber}",
-                        fontSize = 11.sp,
-                        color = TextPrimary
-                    )
-                    Text(
-                        "IFSC: ${business.ifscCode} · UPI: ${business.upiId}",
-                        fontSize = 11.sp,
-                        color = TextPrimary
-                    )
-
-                    Spacer(modifier = Modifier.height(18.dp))
-
-                    // ===== FOOTER =====
-                    Text(
-                        text = "Made with WAVES — Free Invoice & Accounting",
-                        fontSize = 11.sp,
-                        color = TextSecondary.copy(alpha = 0.5f),
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
                 }
             }
 
-            // ===== ACTION BUTTONS =====
             WavesPrimaryButton(
-                text = "DOWNLOAD PDF",
+                text = if (isExporting) "PREPARING PDF..." else "DOWNLOAD PDF",
                 icon = Icons.Filled.Download,
-                onClick = {
-                    exportInvoice(share = false)
-                }
+                enabled = !isExporting,
+                onClick = { exportInvoice(share = false) }
             )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                WavesSecondaryButton(
-                    text = "SHARE",
-                    icon = Icons.Filled.Share,
-                    onClick = { exportInvoice(share = true) },
-                    modifier = Modifier.weight(1f)
-                )
-
-                WavesSecondaryButton(
-                    text = "COPY INVOICE #",
-                    icon = Icons.Filled.Link,
-                    onClick = {
-                        DocumentExports.copyInvoiceNumber(context, invoice.id)
-                        showDemoToast(context, "Invoice number copied")
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
             WavesSecondaryButton(
-                text = "Watch ad to remove watermark",
-                icon = Icons.Filled.PlayCircle,
-                onClick = {
-                    showDemoToast(context, "Ad completed! Watermark removed from PDF")
-                }
+                text = "SHARE PDF",
+                icon = Icons.Filled.Share,
+                onClick = { exportInvoice(share = true) }
             )
-
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 }

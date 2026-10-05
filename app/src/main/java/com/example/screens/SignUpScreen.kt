@@ -1,5 +1,8 @@
 package com.example.screens
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -46,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.FirebaseAuthRepository
@@ -55,6 +59,7 @@ import com.example.components.StateType
 import com.example.components.WavesHeader
 import com.example.components.WavesPrimaryButton
 import com.example.components.WavesTextField
+import com.example.components.showDemoToast
 import com.example.ui.theme.AccentCyan
 import com.example.ui.theme.BackgroundColor
 import com.example.ui.theme.BorderGray
@@ -72,6 +77,7 @@ fun SignUpScreen(
     onNavigateToVerifyEmail: (String, Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var fullName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
@@ -178,9 +184,7 @@ fun SignUpScreen(
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { agreeToTerms = !agreeToTerms }
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Checkbox(
                     checked = agreeToTerms,
@@ -192,9 +196,29 @@ fun SignUpScreen(
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "I agree to Terms & Conditions",
+                    text = "I agree to",
                     fontSize = 13.sp,
                     color = TextPrimary
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "Terms & Conditions",
+                    modifier = Modifier.clickable {
+                        try {
+                            context.startActivity(
+                                Intent(
+                                    Intent.ACTION_VIEW,
+                                    Uri.parse("https://waves.metricfluxsolutions.com/termsandconditions")
+                                )
+                            )
+                        } catch (_: ActivityNotFoundException) {
+                            showDemoToast(context, "No browser is available to open Terms & Conditions.")
+                        }
+                    },
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = EmeraldInk,
+                    textDecoration = TextDecoration.Underline
                 )
             }
             if (hasSubmitted && !agreeToTerms) {

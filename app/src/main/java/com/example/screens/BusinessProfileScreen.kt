@@ -1,5 +1,6 @@
 package com.example.screens
 
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -104,22 +105,11 @@ fun BusinessProfileScreen(
     var tagline by remember { mutableStateOf(initial.tagline) }
     var logoUrl by remember { mutableStateOf(initial.logoUrl) }
     var isUploadingLogo by remember { mutableStateOf(false) }
+    var logoToCrop by remember { mutableStateOf<Uri?>(null) }
 
     val logoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
-            coroutineScope.launch {
-                isUploadingLogo = true
-                errorMessage = ""
-                try {
-                    logoUrl = FirestoreDataRepository.uploadBusinessLogo(uri)
-                } catch (exception: CancellationException) {
-                    throw exception
-                } catch (exception: Exception) {
-                    errorMessage = exception.localizedMessage ?: "Unable to upload business logo."
-                } finally {
-                    isUploadingLogo = false
-                }
-            }
+            logoToCrop = uri
         }
     }
 
@@ -173,6 +163,26 @@ fun BusinessProfileScreen(
                 isSaving = false
             }
         }
+    }
+
+    val cropSourceUri = logoToCrop
+    if (cropSourceUri != null) {
+        LogoCropScreen(
+            sourceUri = cropSourceUri,
+            onNavigateBack = { logoToCrop = null },
+            onChooseAnotherImage = { logoPicker.launch("image/*") },
+            onSaveCroppedImage = { croppedUri ->
+                isUploadingLogo = true
+                try {
+                    logoUrl = FirestoreDataRepository.uploadBusinessLogo(croppedUri)
+                    logoToCrop = null
+                } finally {
+                    croppedUri.path?.let { java.io.File(it).delete() }
+                    isUploadingLogo = false
+                }
+            }
+        )
+        return
     }
 
     if (isSaving) {
