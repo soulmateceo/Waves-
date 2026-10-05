@@ -31,6 +31,7 @@ import com.example.screens.InvoicePreviewScreen
 import com.example.screens.LandingScreen
 import com.example.screens.LogInScreen
 import com.example.screens.ProductListScreen
+import com.example.screens.ProfileScreen
 import com.example.screens.ReportsScreen
 import com.example.screens.SettingsHomeScreen
 import com.example.screens.SignUpScreen
@@ -48,6 +49,7 @@ object WavesDestinations {
     const val DASHBOARD = "dashboard"
     const val INVOICES = "invoices"
     const val CLIENTS = "clients"
+    const val PROFILE = "profile"
     const val SETTINGS = "settings"
     const val BUSINESS_PROFILE = "business_profile"
     const val CLIENT_DETAIL = "client_detail/{clientId}"
@@ -230,6 +232,24 @@ fun WavesNavGraph(
             ClientListScreen(
                 onNavigateToClientDetail = { id -> navController.navigate("client_detail/$id") },
                 onNavigateToAddClient = { navController.navigate("add_edit_client/new") },
+                onNavigateToTab = ::navigateToTab
+            )
+        }
+
+        composable(WavesDestinations.PROFILE) {
+            ProfileScreen(
+                onNavigateToBusinessProfile = { navController.navigate(WavesDestinations.BUSINESS_PROFILE) },
+                onNavigateToTaxSettings = { navController.navigate(WavesDestinations.TAX_SETTINGS) },
+                onNavigateToBankSettings = { navController.navigate(WavesDestinations.BANK_SETTINGS) },
+                onNavigateToProducts = { navController.navigate(WavesDestinations.PRODUCTS) },
+                onNavigateToReports = { navController.navigate(WavesDestinations.REPORTS) },
+                onNavigateToDeleteAccount = { navController.navigate(WavesDestinations.DELETE_ACCOUNT_REASON) },
+                onNavigateToLogIn = {
+                    FirebaseAuthRepository.signOut()
+                    navController.navigate(WavesDestinations.LOG_IN) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                },
                 onNavigateToTab = ::navigateToTab
             )
         }
