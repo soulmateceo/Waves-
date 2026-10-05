@@ -3,6 +3,7 @@
 ## App and Firebase identity
 
 - Android application ID / Play Console package: `com.waves.androidapp`
+- Current release version: `1.1` (`versionCode` 2; use a code greater than every version previously uploaded to any Play track)
 - Firebase Android app: `1:1088277592046:android:1fccb895b44a59bd6f80ff`
 - Firebase configuration: `app/google-services.json`
 - Android Gradle namespace remains `com.example`; it is separate from the installed application ID and keeps existing source packages stable.
@@ -10,15 +11,15 @@
 
 ## Build toolchain
 
-- Gradle: 8.7
-- Android Gradle Plugin: 8.5.0
-- Kotlin: 2.1.0
-- KSP: 2.1.0-1.0.29
-- Kotlin Compose plugin: 2.1.0
+- Gradle: 8.11.1
+- Android Gradle Plugin: 8.10.1
+- Kotlin: 2.2.20
+- KSP: 2.2.20-2.0.4
+- Kotlin Compose plugin: 2.2.20
 - Compose BOM: 2024.09.00
-- Compile SDK / target SDK: 34
+- Compile SDK / target SDK: 36
 - Minimum SDK: 24
-- JDK: 17
+- JDK: 21
 
 The Kotlin Compose plugin replaces the old `kotlinCompilerExtensionVersion` setting. Do not restore a `composeOptions` compiler version while using Kotlin 2.1.0.
 
@@ -89,6 +90,12 @@ Firestore and Storage are provisioned for project `waves-64217`:
 
 The project is linked to a billing account. Storage for Firebase requires the Blaze pay-as-you-go plan under Firebase's current pricing requirements; review the billing plan and usage limits before production use. To deploy backend config and rules later, run `firebase deploy --only auth,firestore:rules,storage --project waves-64217`.
 
+## Google Play submission checks
+
+As of August 31, 2026, new apps and updates must target Android 16 (API 36) or higher. This release is configured for target API 36. Before uploading, check Play Console and ensure the version code exceeds every code already used in all tracks.
+
+This app creates user accounts. Google Play requires an in-app account deletion path and an external web resource for account/data deletion. The current Settings screen does not implement account deletion, and its Privacy Policy item is still a placeholder; complete these policy requirements and the Play Console Data safety form before submission. See [Google Play account deletion requirements](https://support.google.com/googleplay/android-developer/answer/13327111).
+
 ## Verified status
 
-The release APK and AAB were built and signed with the local upload key. The APK signature was verified with `apksigner`, and the AAB signature was verified with `jarsigner`; both use the upload certificate fingerprints listed above. The focused host-side unit tests and release lint/build passed. The generated artifacts are local build outputs and are not committed.
+The release APK and AAB were built and signed with the local upload key. The APK signature was verified with `apksigner`, and the AAB signature was verified with `jarsigner` and Google's `bundletool`; both use the upload certificate fingerprints listed above. All host-side unit tests and the release lint/build passed. The generated artifacts are local build outputs and are not committed.
