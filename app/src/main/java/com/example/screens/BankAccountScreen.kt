@@ -20,9 +20,11 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,7 +39,12 @@ import com.example.components.WavesHeader
 import com.example.components.WavesPrimaryButton
 import com.example.components.WavesTextField
 import com.example.components.showDemoToast
-import com.example.data.SampleData
+import com.example.components.StateScreen
+import com.example.components.StateType
+import com.example.data.FirestoreDataRepository
+import com.example.data.FirestoreState
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import com.example.ui.theme.BackgroundColor
 import com.example.ui.theme.EmeraldInk
 import com.example.ui.theme.OnPrimary
@@ -49,14 +56,71 @@ fun BankAccountScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val initial = SampleData.defaultBusiness
+    val coroutineScope = rememberCoroutineScope()
+    val profileState by remember { FirestoreDataRepository.observeBusinessProfile() }
+        .collectAsState(initial = FirestoreState.Loading)
+    val initial = when (val state = profileState) {
+        FirestoreState.Loading -> {
+            StateScreen(type = StateType.LOADING, message = "Loading bank details...")
+            return
+        }
+        is FirestoreState.Failure -> {
+            StateScreen(type = StateType.ERROR, title = "Bank Details Error", message = state.message)
+            return
+        }
+        is FirestoreState.Data -> state.value
+    }
 
+    var isSaving by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
     var bankName by remember { mutableStateOf(initial.bankName) }
     var accountHolder by remember { mutableStateOf(initial.accountHolder) }
     var accountNumber by remember { mutableStateOf(initial.accountNumber) }
     var ifscCode by remember { mutableStateOf(initial.ifscCode) }
     var branch by remember { mutableStateOf(initial.branch) }
     var upiId by remember { mutableStateOf(initial.upiId) }
+
+    fun saveBankDetails() {
+        coroutineScope.launch {
+            isSaving = true
+            errorMessage = ""
+            try {
+                FirestoreDataRepository.saveBusinessProfile(
+                    initial.copy(
+                        bankName = bankName,
+                        accountHolder = accountHolder,
+                        accountNumber = accountNumber,
+                        ifscCode = ifscCode,
+                        branch = branch,
+                        upiId = upiId
+                    )
+                )
+                showDemoToast(context, "Bank details saved successfully!")
+                onNavigateBack()
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                errorMessage = exception.localizedMessage ?: "Unable to save bank details."
+            } finally {
+                isSaving = false
+            }
+        }
+    }
+
+    if (isSaving) {
+        StateScreen(type = StateType.LOADING, message = "Saving bank details...")
+        return
+    }
+    if (errorMessage.isNotBlank()) {
+        StateScreen(
+            type = StateType.ERROR,
+            title = "Bank Details Error",
+            message = errorMessage,
+            onPrimaryClick = { errorMessage = "" },
+            onSecondaryClick = { errorMessage = "" }
+        )
+        return
+    }
 
     Scaffold(
         topBar = {
@@ -65,10 +129,7 @@ fun BankAccountScreen(
                 onBackClick = onNavigateBack,
                 actions = {
                     TextButton(
-                        onClick = {
-                            showDemoToast(context, "Bank account details saved!")
-                            onNavigateBack()
-                        },
+                        onClick = ::saveBankDetails,
                         modifier = Modifier.testTag("bank_settings_save_button")
                     ) {
                         Text("Save", color = OnPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
@@ -159,10 +220,7 @@ fun BankAccountScreen(
 
             WavesPrimaryButton(
                 text = "SAVE BANK DETAILS",
-                onClick = {
-                    showDemoToast(context, "Bank details saved successfully!")
-                    onNavigateBack()
-                }
+                onClick = ::saveBankDetails
             )
 
             Spacer(modifier = Modifier.height(24.dp))

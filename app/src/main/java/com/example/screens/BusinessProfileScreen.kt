@@ -1,5 +1,7 @@
 package com.example.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -23,6 +25,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -31,6 +34,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,12 +44,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.example.data.FirestoreDataRepository
+import com.example.data.FirestoreState
+import coil.compose.AsyncImage
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.components.StateScreen
@@ -55,7 +64,6 @@ import com.example.components.WavesHeader
 import com.example.components.WavesPrimaryButton
 import com.example.components.WavesTextField
 import com.example.components.showDemoToast
-import com.example.data.SampleData
 import com.example.ui.theme.AccentCyan
 import com.example.ui.theme.BackgroundColor
 import com.example.ui.theme.EmeraldInk
@@ -63,7 +71,7 @@ import com.example.ui.theme.InputBorderGray
 import com.example.ui.theme.OnPrimary
 import com.example.ui.theme.SurfaceColor
 import com.example.ui.theme.TextSecondary
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @Composable
@@ -73,33 +81,47 @@ fun BusinessProfileScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val initial = SampleData.defaultBusiness
+    val profileState by remember { FirestoreDataRepository.observeBusinessProfile() }
+        .collectAsState(initial = FirestoreState.Loading)
+    val initial = when (val state = profileState) {
+        FirestoreState.Loading -> {
+            StateScreen(type = StateType.LOADING, message = "Loading business profile...")
+            return
+        }
+        is FirestoreState.Failure -> {
+            StateScreen(type = StateType.ERROR, title = "Profile Error", message = state.message)
+            return
+        }
+        is FirestoreState.Data -> state.value
+    }
 
     var isSaving by remember { mutableStateOf(false) }
     var showSuccess by remember { mutableStateOf(false) }
-
-    if (isSaving) {
-        StateScreen(
-            type = StateType.LOADING,
-            message = "Saving business profile..."
-        )
-        return
-    }
-
-    if (showSuccess) {
-        StateScreen(
-            type = StateType.SUCCESS,
-            title = "Profile Saved!",
-            message = "Your business profile has been updated.",
-            primaryButtonText = "DONE",
-            onPrimaryClick = onNavigateBack
-        )
-        return
-    }
+    var errorMessage by remember { mutableStateOf("") }
 
     // Business info
     var businessName by remember { mutableStateOf(initial.name) }
     var tagline by remember { mutableStateOf(initial.tagline) }
+    var logoUrl by remember { mutableStateOf(initial.logoUrl) }
+    var isUploadingLogo by remember { mutableStateOf(false) }
+
+    val logoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            coroutineScope.launch {
+                isUploadingLogo = true
+                errorMessage = ""
+                try {
+                    logoUrl = FirestoreDataRepository.uploadBusinessLogo(uri)
+                } catch (exception: CancellationException) {
+                    throw exception
+                } catch (exception: Exception) {
+                    errorMessage = exception.localizedMessage ?: "Unable to upload business logo."
+                } finally {
+                    isUploadingLogo = false
+                }
+            }
+        }
+    }
 
     // Contact
     var email by remember { mutableStateOf(initial.email) }
@@ -121,6 +143,63 @@ fun BusinessProfileScreen(
         "South Africa", "Brazil"
     )
 
+    fun saveProfile() {
+        coroutineScope.launch {
+            isSaving = true
+            errorMessage = ""
+            try {
+                FirestoreDataRepository.saveBusinessProfile(
+                    initial.copy(
+                        name = businessName,
+                        tagline = tagline,
+                        email = email,
+                        phone = phone,
+                        website = website,
+                        logoUrl = logoUrl,
+                        addressLine1 = addressLine1,
+                        addressLine2 = addressLine2,
+                        city = city,
+                        state = state,
+                        postalCode = postalCode,
+                        country = country
+                    )
+                )
+                showSuccess = true
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                errorMessage = exception.localizedMessage ?: "Unable to save business profile."
+            } finally {
+                isSaving = false
+            }
+        }
+    }
+
+    if (isSaving) {
+        StateScreen(type = StateType.LOADING, message = "Saving business profile...")
+        return
+    }
+    if (errorMessage.isNotBlank()) {
+        StateScreen(
+            type = StateType.ERROR,
+            title = "Profile Error",
+            message = errorMessage,
+            onPrimaryClick = { errorMessage = "" },
+            onSecondaryClick = { errorMessage = "" }
+        )
+        return
+    }
+    if (showSuccess) {
+        StateScreen(
+            type = StateType.SUCCESS,
+            title = "Profile Saved!",
+            message = "Your business profile has been updated.",
+            primaryButtonText = "DONE",
+            onPrimaryClick = onNavigateBack
+        )
+        return
+    }
+
     Scaffold(
         topBar = {
             WavesHeader(
@@ -128,10 +207,7 @@ fun BusinessProfileScreen(
                 onBackClick = onNavigateBack,
                 actions = {
                     TextButton(
-                        onClick = {
-                            showDemoToast(context, "Business profile saved!")
-                            onNavigateBack()
-                        },
+                        onClick = ::saveProfile,
                         modifier = Modifier.testTag("business_save_header_button")
                     ) {
                         Text(
@@ -168,15 +244,27 @@ fun BusinessProfileScreen(
                         .clip(CircleShape)
                         .background(Color(0xFFE6F4EA))
                         .clickable {
-                            showDemoToast(context, "Logo picker coming soon")
+                            logoPicker.launch("image/*")
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.app_logo),
-                        contentDescription = "Business Logo",
-                        modifier = Modifier.size(72.dp)
-                    )
+                    if (logoUrl.isNotBlank()) {
+                        AsyncImage(
+                            model = logoUrl,
+                            contentDescription = "Business Logo",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.size(100.dp)
+                        )
+                    } else {
+                        Image(
+                            painter = painterResource(id = R.drawable.app_logo),
+                            contentDescription = "Business Logo",
+                            modifier = Modifier.size(72.dp)
+                        )
+                    }
+                    if (isUploadingLogo) {
+                        CircularProgressIndicator(color = EmeraldInk, modifier = Modifier.size(28.dp))
+                    }
                     Box(
                         modifier = Modifier
                             .size(32.dp)
@@ -334,14 +422,7 @@ fun BusinessProfileScreen(
             // ===== SAVE BUTTON =====
             WavesPrimaryButton(
                 text = "SAVE CHANGES",
-                onClick = {
-                    isSaving = true
-                    coroutineScope.launch {
-                        delay(600)
-                        isSaving = false
-                        showSuccess = true
-                    }
-                }
+                onClick = ::saveProfile
             )
 
             Spacer(modifier = Modifier.height(24.dp))

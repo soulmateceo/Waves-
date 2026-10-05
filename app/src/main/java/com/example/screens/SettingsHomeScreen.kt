@@ -35,6 +35,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -48,12 +49,15 @@ import com.example.components.WavesCard
 import com.example.components.WavesHeader
 import com.example.components.WavesNavTab
 import com.example.components.showDemoToast
+import com.example.data.FirebaseAuthRepository
+import com.example.data.authErrorMessage
 import com.example.ui.theme.BackgroundColor
 import com.example.ui.theme.BorderGray
 import com.example.ui.theme.DangerRed
 import com.example.ui.theme.EmeraldInk
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsHomeScreen(
@@ -67,6 +71,8 @@ fun SettingsHomeScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val accountEmail = FirebaseAuthRepository.currentUser?.email.orEmpty()
 
     Scaffold(
         topBar = {
@@ -161,14 +167,25 @@ fun SettingsHomeScreen(
                     SettingsRowItem(
                         icon = Icons.Filled.Email,
                         label = "Email",
-                        subtitle = "rahul@email.com",
-                        onClick = { showDemoToast(context, "Email: rahul@email.com") }
+                        subtitle = accountEmail,
+                        onClick = { showDemoToast(context, accountEmail) }
                     )
                     HorizontalDivider(color = BorderGray)
                     SettingsRowItem(
                         icon = Icons.Filled.Lock,
                         label = "Change Password",
-                        onClick = { showDemoToast(context, "Password change demo") }
+                        onClick = {
+                            if (accountEmail.isNotBlank()) {
+                                coroutineScope.launch {
+                                    try {
+                                        FirebaseAuthRepository.sendPasswordResetEmail(accountEmail)
+                                        showDemoToast(context, "If an account exists for this email, reset instructions are on their way.")
+                                    } catch (exception: Exception) {
+                                        showDemoToast(context, authErrorMessage(exception))
+                                    }
+                                }
+                            }
+                        }
                     )
                     HorizontalDivider(color = BorderGray)
                     SettingsRowItem(
@@ -176,10 +193,7 @@ fun SettingsHomeScreen(
                         label = "Log Out",
                         iconTint = DangerRed,
                         labelColor = DangerRed,
-                        onClick = {
-                            showDemoToast(context, "Logged out successfully")
-                            onNavigateToLogIn()
-                        }
+                        onClick = onNavigateToLogIn
                     )
                 }
             }

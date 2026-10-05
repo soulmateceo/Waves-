@@ -31,6 +31,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,6 +51,13 @@ import com.example.components.WavesHeader
 import com.example.components.WavesPrimaryButton
 import com.example.components.WavesSecondaryButton
 import com.example.components.showDemoToast
+import com.example.components.StateScreen
+import com.example.components.StateType
+import com.example.data.FirestoreDataRepository
+import com.example.data.FirestoreState
+import com.example.data.BusinessProfile
+import com.example.data.Client
+import com.example.data.Invoice
 import com.example.data.SampleData
 import com.example.ui.theme.BackgroundColor
 import com.example.ui.theme.BorderGray
@@ -65,10 +75,33 @@ fun InvoicePreviewScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val invoice = SampleData.invoices.find { it.id == invoiceId }
-        ?: SampleData.invoices.first()
-    val business = SampleData.defaultBusiness
-    val client = SampleData.clients.find { it.id == invoice.clientId }
+    val invoiceState by remember(invoiceId) { FirestoreDataRepository.observeInvoice(invoiceId) }
+        .collectAsState(initial = FirestoreState.Loading)
+    val businessState by remember { FirestoreDataRepository.observeBusinessProfile() }
+        .collectAsState(initial = FirestoreState.Loading)
+    val clientsState by remember { FirestoreDataRepository.observeClients() }
+        .collectAsState(initial = FirestoreState.Loading)
+    val invoice = (invoiceState as? FirestoreState.Data<*>)?.value as? Invoice
+    val business = (businessState as? FirestoreState.Data<*>)?.value as? BusinessProfile
+    val clients = (clientsState as? FirestoreState.Data<*>)?.value as? List<Client>
+    val client = clients?.find { it.id == invoice?.clientId }
+
+    if (invoiceState is FirestoreState.Loading || businessState is FirestoreState.Loading || clientsState is FirestoreState.Loading) {
+        StateScreen(type = StateType.LOADING, message = "Loading invoice preview...")
+        return
+    }
+    val loadError = (invoiceState as? FirestoreState.Failure)?.message
+        ?: (businessState as? FirestoreState.Failure)?.message
+        ?: (clientsState as? FirestoreState.Failure)?.message
+    if (loadError != null || invoice == null || business == null) {
+        StateScreen(
+            type = StateType.ERROR,
+            title = "Preview Unavailable",
+            message = loadError ?: "This invoice could not be found.",
+            onPrimaryClick = onNavigateBack
+        )
+        return
+    }
 
     Scaffold(
         topBar = {

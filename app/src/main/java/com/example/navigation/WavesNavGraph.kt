@@ -12,6 +12,7 @@ import androidx.navigation.navArgument
 import com.example.components.StateScreen
 import com.example.components.StateType
 import com.example.components.WavesNavTab
+import com.example.data.FirebaseAuthRepository
 import com.example.screens.AddEditClientScreen
 import com.example.screens.AddEditProductScreen
 import com.example.screens.BankAccountScreen
@@ -20,14 +21,13 @@ import com.example.screens.ClientDetailScreen
 import com.example.screens.ClientListScreen
 import com.example.screens.CreateInvoiceScreen
 import com.example.screens.DashboardScreen
+import com.example.screens.EmailVerificationScreen
 import com.example.screens.ForgotPasswordScreen
 import com.example.screens.InvoiceDetailScreen
 import com.example.screens.InvoiceListScreen
 import com.example.screens.InvoicePreviewScreen
 import com.example.screens.LandingScreen
 import com.example.screens.LogInScreen
-import com.example.screens.NewPasswordScreen
-import com.example.screens.OtpVerificationScreen
 import com.example.screens.ProductListScreen
 import com.example.screens.ReportsScreen
 import com.example.screens.SettingsHomeScreen
@@ -41,8 +41,7 @@ object WavesDestinations {
     const val SIGN_UP = "signup"
     const val LOG_IN = "login"
     const val FORGOT_PASSWORD = "forgot_password"
-    const val OTP_VERIFICATION = "otp/{email}/{mode}"
-    const val NEW_PASSWORD = "new_password/{email}"
+    const val EMAIL_VERIFICATION = "verify_email/{email}/{emailSent}"
     const val STATE_SCREEN = "state_screen/{type}"
     const val DASHBOARD = "dashboard"
     const val INVOICES = "invoices"
@@ -85,7 +84,13 @@ fun WavesNavGraph(
         composable(WavesDestinations.SPLASH) {
             SplashScreen(
                 onNavigateToLanding = {
-                    navController.navigate(WavesDestinations.LANDING) {
+                    val user = FirebaseAuthRepository.currentUser
+                    val destination = when {
+                        user == null -> WavesDestinations.LANDING
+                        user.isEmailVerified -> WavesDestinations.DASHBOARD
+                        else -> "verify_email/${Uri.encode(user.email.orEmpty())}/false"
+                    }
+                    navController.navigate(destination) {
                         popUpTo(WavesDestinations.SPLASH) { inclusive = true }
                     }
                 }
@@ -112,9 +117,8 @@ fun WavesNavGraph(
                         popUpTo(WavesDestinations.SIGN_UP) { inclusive = true }
                     }
                 },
-                onNavigateToOtp = { email ->
-                    val encoded = Uri.encode(email)
-                    navController.navigate("otp/$encoded/signup")
+                onNavigateToVerifyEmail = { email, emailSent ->
+                    navController.navigate("verify_email/${Uri.encode(email)}/$emailSent")
                 }
             )
         }
@@ -132,6 +136,9 @@ fun WavesNavGraph(
                         popUpTo(WavesDestinations.LANDING) { inclusive = true }
                     }
                 },
+                onNavigateToVerifyEmail = { email ->
+                    navController.navigate("verify_email/${Uri.encode(email)}/false")
+                },
                 onNavigateToForgotPassword = {
                     navController.navigate(WavesDestinations.FORGOT_PASSWORD)
                 }
@@ -141,50 +148,37 @@ fun WavesNavGraph(
         composable(WavesDestinations.FORGOT_PASSWORD) {
             ForgotPasswordScreen(
                 onNavigateBack = { navController.popBackStack() },
-                onNavigateToOtp = { email ->
-                    val encoded = Uri.encode(email)
-                    navController.navigate("otp/$encoded/reset")
-                }
-            )
-        }
-
-        composable(
-            route = WavesDestinations.OTP_VERIFICATION,
-            arguments = listOf(
-                navArgument("email") { type = NavType.StringType },
-                navArgument("mode") { type = NavType.StringType }
-            )
-        ) { backStackEntry ->
-            val emailArg = backStackEntry.arguments?.getString("email") ?: "user@waves.app"
-            val modeArg = backStackEntry.arguments?.getString("mode") ?: "signup"
-            OtpVerificationScreen(
-                email = emailArg,
-                mode = modeArg,
-                onNavigateBack = { navController.popBackStack() },
-                onVerificationSuccess = {
-                    if (modeArg == "reset") {
-                        val encoded = Uri.encode(emailArg)
-                        navController.navigate("new_password/$encoded")
-                    } else {
-                        navController.navigate(WavesDestinations.DASHBOARD) {
-                            popUpTo(WavesDestinations.LANDING) { inclusive = true }
-                        }
+                onNavigateToLogIn = {
+                    navController.navigate(WavesDestinations.LOG_IN) {
+                        popUpTo(WavesDestinations.FORGOT_PASSWORD) { inclusive = true }
                     }
                 }
             )
         }
 
         composable(
-            route = WavesDestinations.NEW_PASSWORD,
-            arguments = listOf(navArgument("email") { type = NavType.StringType })
+            route = WavesDestinations.EMAIL_VERIFICATION,
+            arguments = listOf(
+                navArgument("email") { type = NavType.StringType },
+                navArgument("emailSent") { type = NavType.BoolType }
+            )
         ) { backStackEntry ->
-            val emailArg = backStackEntry.arguments?.getString("email") ?: ""
-            NewPasswordScreen(
+            val emailArg = Uri.decode(backStackEntry.arguments?.getString("email").orEmpty())
+            val emailSent = backStackEntry.arguments?.getBoolean("emailSent") ?: false
+            EmailVerificationScreen(
                 email = emailArg,
-                onNavigateBack = { navController.popBackStack() },
-                onNavigateToLogIn = {
-                    navController.navigate(WavesDestinations.LOG_IN) {
-                        popUpTo(WavesDestinations.LOG_IN) { inclusive = true }
+                initialEmailSent = emailSent,
+                onNavigateBack = {
+                    if (!navController.popBackStack()) {
+                        FirebaseAuthRepository.signOut()
+                        navController.navigate(WavesDestinations.LOG_IN) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                },
+                onVerificationSuccess = {
+                    navController.navigate(WavesDestinations.DASHBOARD) {
+                        popUpTo(0) { inclusive = true }
                     }
                 }
             )
@@ -244,6 +238,7 @@ fun WavesNavGraph(
                 onNavigateToProducts = { navController.navigate(WavesDestinations.PRODUCTS) },
                 onNavigateToReports = { navController.navigate(WavesDestinations.REPORTS) },
                 onNavigateToLogIn = {
+                    FirebaseAuthRepository.signOut()
                     navController.navigate(WavesDestinations.LOG_IN) {
                         popUpTo(0) { inclusive = true }
                     }

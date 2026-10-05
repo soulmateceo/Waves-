@@ -28,13 +28,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -47,15 +47,15 @@ import com.example.components.WavesHeader
 import com.example.components.WavesPrimaryButton
 import com.example.components.WavesSecondaryButton
 import com.example.components.WavesTextField
-import com.example.components.showDemoToast
-import com.example.data.SampleData
+import com.example.data.FirestoreDataRepository
+import com.example.data.Product
 import com.example.ui.theme.AccentCyan
 import com.example.ui.theme.BackgroundColor
 import com.example.ui.theme.InputBorderGray
 import com.example.ui.theme.OnPrimary
 import com.example.ui.theme.SurfaceColor
 import com.example.ui.theme.TextSecondary
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @Composable
@@ -64,19 +64,102 @@ fun AddEditProductScreen(
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val isEditMode = productId != null && productId != "new"
-    val existingProduct = SampleData.products.find { it.id == productId }
+    var existingProduct by remember { mutableStateOf<Product?>(null) }
 
     var isSaving by remember { mutableStateOf(false) }
+    var isLoadingExisting by remember { mutableStateOf(isEditMode) }
     var showSuccess by remember { mutableStateOf(false) }
     var hasSubmitted by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var sku by remember { mutableStateOf("") }
 
-    if (isSaving) {
+    var unitPrice by remember { mutableStateOf("") }
+    var unit by remember { mutableStateOf("pcs") }
+    var unitDropdownOpen by remember { mutableStateOf(false) }
+    val units = listOf("pcs", "hrs", "kg", "yr", "mo", "day")
+
+    var defaultQuantity by remember { mutableStateOf("1") }
+    var taxRate by remember { mutableStateOf("18") }
+
+    LaunchedEffect(productId) {
+        if (isEditMode) {
+            try {
+                existingProduct = FirestoreDataRepository.getProduct(productId!!)
+                    ?: error("Product not found.")
+                existingProduct?.let { product ->
+                    name = product.name
+                    description = product.description
+                    sku = product.sku
+                    unitPrice = product.unitPrice.toString()
+                    unit = product.unit
+                    defaultQuantity = product.defaultQuantity.toString()
+                    taxRate = product.taxRate.toString()
+                }
+            } catch (exception: Exception) {
+                errorMessage = exception.localizedMessage ?: "Unable to load product."
+            } finally {
+                isLoadingExisting = false
+            }
+        }
+    }
+
+    fun saveProduct() {
+        hasSubmitted = true
+        val parsedPrice = unitPrice.toDoubleOrNull()
+        if (name.isBlank() || parsedPrice == null || parsedPrice < 0.0) return
+        val parsedQuantity = defaultQuantity.toIntOrNull()
+        val parsedTax = taxRate.toDoubleOrNull()
+        if (parsedQuantity == null || parsedQuantity < 1 || parsedTax == null || parsedTax < 0.0) {
+            errorMessage = "Enter a valid quantity and tax rate."
+            return
+        }
+        coroutineScope.launch {
+            isSaving = true
+            errorMessage = ""
+            try {
+                FirestoreDataRepository.saveProduct(
+                    Product(
+                        id = if (isEditMode) productId!! else "",
+                        name = name.trim(),
+                        description = description.trim(),
+                        sku = sku.trim(),
+                        unitPrice = parsedPrice,
+                        unit = unit,
+                        defaultQuantity = parsedQuantity,
+                        taxRate = parsedTax,
+                        isArchived = existingProduct?.isArchived ?: false
+                    )
+                )
+                showSuccess = true
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                errorMessage = exception.localizedMessage ?: "Unable to save product."
+            } finally {
+                isSaving = false
+            }
+        }
+    }
+
+    if (isLoadingExisting || isSaving) {
         StateScreen(
             type = StateType.LOADING,
-            message = "Saving product details..."
+            message = if (isLoadingExisting) "Loading product details..." else "Saving product details..."
+        )
+        return
+    }
+
+    if (errorMessage.isNotBlank()) {
+        StateScreen(
+            type = StateType.ERROR,
+            title = "Product Error",
+            message = errorMessage,
+            onPrimaryClick = { errorMessage = "" },
+            onSecondaryClick = { errorMessage = "" }
         )
         return
     }
@@ -92,18 +175,6 @@ fun AddEditProductScreen(
         return
     }
 
-    var name by remember { mutableStateOf(existingProduct?.name ?: "") }
-    var description by remember { mutableStateOf(existingProduct?.description ?: "") }
-    var sku by remember { mutableStateOf(existingProduct?.sku ?: "") }
-
-    var unitPrice by remember { mutableStateOf(existingProduct?.unitPrice?.toString() ?: "") }
-    var unit by remember { mutableStateOf(existingProduct?.unit ?: "pcs") }
-    var unitDropdownOpen by remember { mutableStateOf(false) }
-    val units = listOf("pcs", "hrs", "kg", "yr", "mo", "day")
-
-    var defaultQuantity by remember { mutableStateOf(existingProduct?.defaultQuantity?.toString() ?: "1") }
-    var taxRate by remember { mutableStateOf(existingProduct?.taxRate?.toString() ?: "18") }
-
     val screenTitle = if (isEditMode) "Edit Product" else "Add Product"
 
     Scaffold(
@@ -113,10 +184,7 @@ fun AddEditProductScreen(
                 onBackClick = onNavigateBack,
                 actions = {
                     TextButton(
-                        onClick = {
-                            showDemoToast(context, if (isEditMode) "Product updated!" else "Product added!")
-                            onNavigateBack()
-                        },
+                        onClick = ::saveProduct,
                         modifier = Modifier.testTag("save_product_header_button")
                     ) {
                         Text("Save", color = OnPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
@@ -253,28 +321,31 @@ fun AddEditProductScreen(
             // Emerald "SAVE PRODUCT" button
             WavesPrimaryButton(
                 text = "SAVE PRODUCT",
-                onClick = {
-                    hasSubmitted = true
-                    if (name.isNotBlank()) {
-                        isSaving = true
-                        coroutineScope.launch {
-                            delay(600)
-                            isSaving = false
-                            showSuccess = true
-                        }
-                    }
-                }
+                onClick = ::saveProduct
             )
 
-            // Outlined "ARCHIVE PRODUCT" button
-            WavesSecondaryButton(
-                text = "ARCHIVE PRODUCT",
-                icon = Icons.Filled.Archive,
-                onClick = {
-                    showDemoToast(context, "Product archived (demo)")
-                    onNavigateBack()
-                }
-            )
+            if (isEditMode) {
+                WavesSecondaryButton(
+                    text = if (existingProduct?.isArchived == true) "RESTORE PRODUCT" else "ARCHIVE PRODUCT",
+                    icon = Icons.Filled.Archive,
+                    onClick = {
+                        coroutineScope.launch {
+                            isSaving = true
+                            try {
+                                FirestoreDataRepository.archiveProduct(
+                                    productId!!,
+                                    archived = existingProduct?.isArchived != true
+                                )
+                                onNavigateBack()
+                            } catch (exception: Exception) {
+                                errorMessage = exception.localizedMessage ?: "Unable to update product status."
+                            } finally {
+                                isSaving = false
+                            }
+                        }
+                    }
+                )
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
         }

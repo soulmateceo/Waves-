@@ -64,6 +64,28 @@ Expected outputs:
 
 Artifacts under `app/build/outputs/` are local build outputs and are not committed.
 
+## Firebase Backend
+
+The Firebase CLI project is `waves-64217` in `.firebaserc`. The app uses Email/Password authentication; enable that provider under Firebase Console → Authentication → Sign-in method. Verification and password-reset emails currently use Firebase's built-in email delivery. Custom SMTP is not configured yet.
+
+Business data is scoped to the authenticated user's UID:
+
+- `users/{uid}/metadata/account`: signup email, display name, terms acceptance, and timestamps
+- `users/{uid}/clients/{clientId}`: client contact, billing address, tax, notes, and archive state
+- `users/{uid}/products/{productId}`: SKU, description, price, unit, quantity, tax, and archive state
+- `users/{uid}/invoices/{invoiceId}`: client snapshot, dates, line items, totals, status, and payment history
+- `users/{uid}/settings/business`: business profile, logo URL, tax, bank details, and invoice defaults
+- Storage `users/{uid}/business/logo`: owner-only image, limited to 5 MB
+
+New accounts start with empty business data; no sample clients, bank details, or invoices are seeded. Firestore and Storage rules require a verified account and restrict records/files to their owner. The signup metadata rule permits only the exact terms-consent document before email verification.
+
+Firestore region selected for this project: `nam5` (US multi-region). Firestore provisioning has not completed: the project currently returns HTTP 403 because the Firestore API is disabled. Before real signups/data writes can work:
+
+1. Enable the Firestore API for project `waves-64217` in [Google Cloud Console](https://console.cloud.google.com/apis/library/firestore.googleapis.com?project=waves-64217).
+2. Create the `(default)` Firestore database in `nam5` (Standard edition) in Firebase Console, or retry `firebase firestore:databases:create '(default)' --location nam5 --edition standard --delete-protection ENABLED --project waves-64217` after enabling the API.
+3. Enable Firebase Storage and confirm its default bucket is `waves-64217.firebasestorage.app`.
+4. Deploy rules with `firebase deploy --only firestore:rules,storage --project waves-64217`.
+
 ## Verified status
 
 At the time this guide was written, the release APK exists and its signature was verified with `apksigner`. Its package is `com.waves.androidapp`, and its signer SHA-1 matches the upload certificate above. An AAB was not present in the output directory at verification time; run the combined release command above before uploading a bundle to Play Console.

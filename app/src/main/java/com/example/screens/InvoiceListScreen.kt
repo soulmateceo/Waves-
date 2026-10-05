@@ -23,6 +23,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,7 +46,10 @@ import com.example.components.WavesHeader
 import com.example.components.WavesNavTab
 import com.example.components.WavesTextField
 import com.example.data.InvoiceStatus
-import com.example.data.SampleData
+import com.example.data.FirestoreDataRepository
+import com.example.data.FirestoreState
+import com.example.components.StateScreen
+import com.example.components.StateType
 import com.example.ui.theme.BackgroundColor
 import com.example.ui.theme.DangerRed
 import com.example.ui.theme.OnPrimary
@@ -64,9 +68,22 @@ fun InvoiceListScreen(
     var searchQuery by remember { mutableStateOf("") }
     var isSearchVisible by remember { mutableStateOf(false) }
 
+    val invoiceState by remember { FirestoreDataRepository.observeInvoices() }
+        .collectAsState(initial = FirestoreState.Loading)
+    val allInvoices = when (val state = invoiceState) {
+        FirestoreState.Loading -> {
+            StateScreen(type = StateType.LOADING, message = "Loading invoices...")
+            return
+        }
+        is FirestoreState.Failure -> {
+            StateScreen(type = StateType.ERROR, title = "Invoice Error", message = state.message)
+            return
+        }
+        is FirestoreState.Data -> state.value
+    }
+
     val statusTabs = listOf("All", "Pending", "Partial", "Paid", "Overdue", "Cancelled")
 
-    val allInvoices = SampleData.invoices
     val filteredInvoices = allInvoices.filter { invoice ->
         val matchesFilter = when (selectedFilter) {
             "Pending" -> invoice.status == InvoiceStatus.PENDING
@@ -236,7 +253,7 @@ fun InvoiceListScreen(
                                 ) {
                                     Column {
                                         Text(
-                                            text = SampleData.formatCurrency(invoice.grandTotal),
+                                            text = formatCurrency(invoice.grandTotal),
                                             fontSize = 17.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = TextPrimary
@@ -252,7 +269,7 @@ fun InvoiceListScreen(
                                         invoice.status == InvoiceStatus.HALF_PAID
                                     ) {
                                         Text(
-                                            text = "${SampleData.formatCurrency(invoice.balanceDue)} due",
+                                            text = "${formatCurrency(invoice.balanceDue)} due",
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = DangerRed
@@ -275,3 +292,5 @@ fun InvoiceListScreen(
         }
     }
 }
+
+private fun formatCurrency(amount: Double) = "₹%,.0f".format(amount)

@@ -31,6 +31,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,9 +49,14 @@ import com.example.components.WavesCard
 import com.example.components.WavesHeader
 import com.example.components.WavesNavTab
 import com.example.components.WavesPrimaryButton
+import com.example.components.StateScreen
+import com.example.components.StateType
 import com.example.components.showDemoToast
+import com.example.data.FirestoreDataRepository
+import com.example.data.FirestoreState
+import com.example.data.Invoice
 import com.example.data.InvoiceStatus
-import com.example.data.SampleData
+import com.example.data.ReportDateUtils
 import com.example.ui.theme.AccentCyan
 import com.example.ui.theme.BackgroundColor
 import com.example.ui.theme.EmeraldInk
@@ -68,6 +76,35 @@ fun DashboardScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val invoiceState by remember { FirestoreDataRepository.observeInvoices() }
+        .collectAsState(initial = FirestoreState.Loading)
+    if (invoiceState is FirestoreState.Loading) {
+        StateScreen(type = StateType.LOADING, message = "Loading dashboard...")
+        return
+    }
+    if (invoiceState is FirestoreState.Failure) {
+        StateScreen(
+            type = StateType.ERROR,
+            title = "Dashboard Error",
+            message = (invoiceState as FirestoreState.Failure).message
+        )
+        return
+    }
+    val invoices = ((invoiceState as? FirestoreState.Data<*>)?.value as? List<Invoice>).orEmpty()
+    val userName = com.example.data.FirebaseAuthRepository.currentUser?.displayName
+        ?.takeIf(String::isNotBlank)
+        ?: com.example.data.FirebaseAuthRepository.currentUser?.email?.substringBefore("@")
+        ?: "there"
+    val currentMonthKey = ReportDateUtils.monthKey(ReportDateUtils.currentDate())
+    val revenueThisMonth = invoices.sumOf { invoice ->
+        invoice.payments.filter { ReportDateUtils.monthKey(it.date) == currentMonthKey }
+            .sumOf { it.amount }
+    }
+    val pendingCount = invoices.count {
+        it.status == InvoiceStatus.PENDING || it.status == InvoiceStatus.HALF_PAID ||
+            it.status == InvoiceStatus.OVERDUE
+    }
+    val recentInvoices = invoices.sortedByDescending { it.id }.take(3)
 
     Scaffold(
         topBar = {
@@ -116,9 +153,8 @@ fun DashboardScreen(
         ) {
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Greeting: "Good morning, Rahul 👋" 20sp bold
             Text(
-                text = "Good morning, Rahul 👋",
+                text = "Good morning, $userName",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary
@@ -131,7 +167,7 @@ fun DashboardScreen(
                 onClick = onNavigateToCreateInvoice
             )
 
-            // Two stat cards side-by-side: [12 Invoices] [₹45,200 This Month]
+            // Two stat cards side-by-side: invoice count and collected revenue this month.
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -160,14 +196,14 @@ fun DashboardScreen(
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "12 Invoices",
+                            text = "${invoices.size} Invoices",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "3 pending",
+                            text = "$pendingCount pending",
                             fontSize = 11.sp,
                             color = AccentCyan
                         )
@@ -198,7 +234,7 @@ fun DashboardScreen(
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "₹45,200",
+                            text = formatCurrency(revenueThisMonth),
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary
@@ -261,20 +297,16 @@ fun DashboardScreen(
                 )
             }
 
-            // 3 invoice cards:
-            // INV-001 · Rahul Sharma · ₹8,260 · PAID (green chip)
-            // INV-002 · Priya Mehta · ₹12,500 · HALF PAID (amber chip)
-            // INV-003 · Amit Verma · ₹3,200 · PENDING (gray chip)
-            val recentInvoices = listOf(
-                Triple("INV-001", "Rahul Sharma", 8260.0 to InvoiceStatus.PAID),
-                Triple("INV-002", "Priya Mehta", 12500.0 to InvoiceStatus.HALF_PAID),
-                Triple("INV-003", "Amit Verma", 3200.0 to InvoiceStatus.PENDING)
-            )
-
-            recentInvoices.forEach { (invId, client, amountStatus) ->
-                val (amount, status) = amountStatus
+            if (recentInvoices.isEmpty()) {
+                Text(
+                    text = "No invoices yet. Create an invoice to see it here.",
+                    fontSize = 13.sp,
+                    color = TextSecondary
+                )
+            }
+            recentInvoices.forEach { invoice ->
                 WavesCard(
-                    onClick = { onNavigateToInvoiceDetail(invId) }
+                    onClick = { onNavigateToInvoiceDetail(invoice.id) }
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -284,28 +316,28 @@ fun DashboardScreen(
                         Column {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = invId,
+                                    text = invoice.id,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = TextPrimary
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "· $client",
+                                    text = "· ${invoice.clientName}",
                                     fontSize = 14.sp,
                                     color = TextSecondary
                                 )
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = SampleData.formatCurrency(amount),
+                                text = formatCurrency(invoice.grandTotal),
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = TextPrimary
                             )
                         }
 
-                        StatusChip(status = status)
+                        StatusChip(status = invoice.status)
                     }
                 }
             }
@@ -317,6 +349,8 @@ fun DashboardScreen(
         }
     }
 }
+
+private fun formatCurrency(amount: Double) = "₹%,.0f".format(amount)
 
 @Composable
 private fun QuickActionChip(

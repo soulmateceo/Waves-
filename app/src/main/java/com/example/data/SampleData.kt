@@ -79,7 +79,12 @@ data class Invoice(
     val subtotal: Double get() = items.sumOf { it.subtotal }
     val taxAmount: Double get() = items.sumOf { it.taxAmount }
     val grandTotal: Double get() = (subtotal - discount) + taxAmount
-    val balanceDue: Double get() = (grandTotal - paidAmount).coerceAtLeast(0.0)
+    val balanceDue: Double
+        get() = if (status == InvoiceStatus.CANCELLED || status == InvoiceStatus.WRITTEN_OFF) {
+            0.0
+        } else {
+            (grandTotal - paidAmount).coerceAtLeast(0.0)
+        }
 }
 
 data class BusinessProfile(
@@ -88,6 +93,7 @@ data class BusinessProfile(
     val email: String = "hello@waves.app",
     val phone: String = "+91 98765 43210",
     val website: String = "https://waves.app",
+    val logoUrl: String = "",
     val addressLine1: String = "123 Main St",
     val addressLine2: String = "Suite 400",
     val city: String = "Mumbai",

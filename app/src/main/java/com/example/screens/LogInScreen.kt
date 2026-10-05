@@ -38,6 +38,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.EmailNotVerifiedException
+import com.example.data.FirebaseAuthRepository
+import com.example.data.authErrorMessage
 import com.example.components.StateScreen
 import com.example.components.StateType
 import com.example.components.WavesHeader
@@ -48,7 +51,7 @@ import com.example.ui.theme.BackgroundColor
 import com.example.ui.theme.EmeraldInk
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @Composable
@@ -56,17 +59,20 @@ fun LogInScreen(
     onNavigateBack: () -> Unit,
     onNavigateToSignUp: () -> Unit,
     onNavigateToDashboard: () -> Unit,
+    onNavigateToVerifyEmail: (String) -> Unit,
     onNavigateToForgotPassword: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    var email by remember { mutableStateOf("rahul@email.com") }
-    var password by remember { mutableStateOf("Password123") }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
     var hasSubmitted by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var showErrorState by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
+    var unverifiedEmail by remember { mutableStateOf<String?>(null) }
 
     val emailError = if (hasSubmitted && (!email.contains("@") || !email.contains("."))) "Enter a valid email" else null
     val passwordError = if (hasSubmitted && password.isEmpty()) "Password is required" else null
@@ -83,8 +89,14 @@ fun LogInScreen(
         StateScreen(
             type = StateType.ERROR,
             title = "Login Failed",
-            message = "Invalid email or password. Please verify your credentials and try again.",
-            onPrimaryClick = { showErrorState = false },
+            message = errorMessage,
+            primaryButtonText = if (unverifiedEmail == null) "TRY AGAIN" else "VERIFY EMAIL",
+            onPrimaryClick = {
+                val emailToVerify = unverifiedEmail
+                showErrorState = false
+                unverifiedEmail = null
+                if (emailToVerify != null) onNavigateToVerifyEmail(emailToVerify)
+            },
             onSecondaryClick = { showErrorState = false }
         )
         return
@@ -172,15 +184,20 @@ fun LogInScreen(
                 onClick = {
                     hasSubmitted = true
                     if (email.contains("@") && email.contains(".") && password.isNotEmpty()) {
-                        if (password == "error") {
-                            showErrorState = true
-                        } else {
-                            isLoading = true
-                            coroutineScope.launch {
-                                delay(600)
-                                isLoading = false
+                        isLoading = true
+                        coroutineScope.launch {
+                            try {
+                                FirebaseAuthRepository.signIn(email, password)
                                 showDemoToast(context, "Welcome back!")
                                 onNavigateToDashboard()
+                            } catch (exception: CancellationException) {
+                                throw exception
+                            } catch (exception: Exception) {
+                                errorMessage = authErrorMessage(exception)
+                                unverifiedEmail = (exception as? EmailNotVerifiedException)?.email
+                                showErrorState = true
+                            } finally {
+                                isLoading = false
                             }
                         }
                     }

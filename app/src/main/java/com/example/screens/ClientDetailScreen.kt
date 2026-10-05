@@ -29,9 +29,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,7 +49,10 @@ import com.example.components.WavesChip
 import com.example.components.WavesFAB
 import com.example.components.WavesHeader
 import com.example.components.showDemoToast
-import com.example.data.SampleData
+import com.example.components.StateScreen
+import com.example.components.StateType
+import com.example.data.FirestoreDataRepository
+import com.example.data.FirestoreState
 import com.example.ui.theme.BackgroundColor
 import com.example.ui.theme.DangerRed
 import com.example.ui.theme.EmeraldInk
@@ -55,6 +60,7 @@ import com.example.ui.theme.OnPrimary
 import com.example.ui.theme.SuccessGreen
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import kotlinx.coroutines.launch
 
 @Composable
 fun ClientDetailScreen(
@@ -66,11 +72,38 @@ fun ClientDetailScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val client = SampleData.clients.find { it.id == clientId } ?: SampleData.clients.first()
+    val coroutineScope = rememberCoroutineScope()
+    val clientsState by remember { FirestoreDataRepository.observeClients() }
+        .collectAsState(initial = FirestoreState.Loading)
+    val invoicesState by remember { FirestoreDataRepository.observeInvoices() }
+        .collectAsState(initial = FirestoreState.Loading)
+    val clientData = (clientsState as? FirestoreState.Data)?.value
+    val client = clientData?.find { it.id == clientId }
+    val clientInvoices = (invoicesState as? FirestoreState.Data)?.value.orEmpty()
+        .filter { it.clientId == clientId }
+
+    if (clientsState is FirestoreState.Loading || invoicesState is FirestoreState.Loading) {
+        StateScreen(type = StateType.LOADING, message = "Loading client...")
+        return
+    }
+    val loadError = (clientsState as? FirestoreState.Failure)?.message
+        ?: (invoicesState as? FirestoreState.Failure)?.message
+    if (loadError != null) {
+        StateScreen(type = StateType.ERROR, title = "Client Error", message = loadError)
+        return
+    }
+    if (client == null) {
+        StateScreen(
+            type = StateType.ERROR,
+            title = "Client Not Found",
+            message = "This client may have been deleted.",
+            onPrimaryClick = onNavigateBack
+        )
+        return
+    }
+
     var selectedTab by remember { mutableStateOf("Invoices") }
     var menuExpanded by remember { mutableStateOf(false) }
-
-    val clientInvoices = SampleData.invoices.filter { it.clientId == client.id }
 
     Scaffold(
         topBar = {
@@ -108,11 +141,20 @@ fun ClientDetailScreen(
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Archive Client") },
+                                text = { Text(if (client.isArchived) "Restore Client" else "Archive Client") },
                                 onClick = {
                                     menuExpanded = false
-                                    showDemoToast(context, "Client archived")
-                                    onNavigateBack()
+                                    coroutineScope.launch {
+                                        try {
+                                            FirestoreDataRepository.archiveClient(
+                                                client.id,
+                                                archived = !client.isArchived
+                                            )
+                                            onNavigateBack()
+                                        } catch (exception: Exception) {
+                                            showDemoToast(context, exception.localizedMessage ?: "Unable to archive client.")
+                                        }
+                                    }
                                 }
                             )
                         }
@@ -232,7 +274,7 @@ fun ClientDetailScreen(
                         Text(text = "Billed", fontSize = 12.sp, color = TextSecondary)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = SampleData.formatCurrency(client.totalBilled),
+                            text = formatCurrency(client.totalBilled),
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary
@@ -250,7 +292,7 @@ fun ClientDetailScreen(
                         Text(text = "Paid", fontSize = 12.sp, color = TextSecondary)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = SampleData.formatCurrency(client.totalPaid),
+                            text = formatCurrency(client.totalPaid),
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             color = SuccessGreen
@@ -268,7 +310,7 @@ fun ClientDetailScreen(
                         Text(text = "Due", fontSize = 12.sp, color = TextSecondary)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = SampleData.formatCurrency(client.totalDue),
+                            text = formatCurrency(client.totalDue),
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (client.totalDue > 0) DangerRed else SuccessGreen
@@ -325,7 +367,7 @@ fun ClientDetailScreen(
                                         )
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Text(
-                                            text = SampleData.formatCurrency(invoice.grandTotal),
+                                            text = formatCurrency(invoice.grandTotal),
                                             fontSize = 15.sp,
                                             fontWeight = FontWeight.SemiBold,
                                             color = TextPrimary
@@ -361,11 +403,11 @@ fun ClientDetailScreen(
                                             color = TextPrimary
                                         )
                                         Text(
-                                            text = "${payment.date} · Ref: ${payment.reference ?: "—"}",
+                                            text = "${payment.date} · Ref: ${payment.reference.ifBlank { "—" }}",
                                             fontSize = 12.sp,
                                             color = TextSecondary
                                         )
-                                        if (!payment.notes.isNullOrBlank()) {
+                                        if (payment.notes.isNotBlank()) {
                                             Text(
                                                 text = payment.notes,
                                                 fontSize = 12.sp,
@@ -374,7 +416,7 @@ fun ClientDetailScreen(
                                         }
                                     }
                                     Text(
-                                        text = "+${SampleData.formatCurrency(payment.amount)}",
+                                        text = "+${formatCurrency(payment.amount)}",
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = SuccessGreen
@@ -421,6 +463,8 @@ fun ClientDetailScreen(
         }
     }
 }
+
+private fun formatCurrency(amount: Double) = "₹%,.0f".format(amount)
 
 @Composable
 private fun EmptyTabMessage(title: String, message: String) {

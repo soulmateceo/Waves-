@@ -30,13 +30,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -49,15 +49,15 @@ import com.example.components.WavesHeader
 import com.example.components.WavesPrimaryButton
 import com.example.components.WavesSecondaryButton
 import com.example.components.WavesTextField
-import com.example.components.showDemoToast
-import com.example.data.SampleData
+import com.example.data.Client
+import com.example.data.FirestoreDataRepository
 import com.example.ui.theme.AccentCyan
 import com.example.ui.theme.BackgroundColor
 import com.example.ui.theme.InputBorderGray
 import com.example.ui.theme.OnPrimary
 import com.example.ui.theme.SurfaceColor
 import com.example.ui.theme.TextSecondary
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @Composable
@@ -66,19 +66,107 @@ fun AddEditClientScreen(
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val isEditMode = clientId != null && clientId != "new"
-    val existingClient = SampleData.clients.find { it.id == clientId }
+    var existingClient by remember { mutableStateOf<Client?>(null) }
 
     var isSaving by remember { mutableStateOf(false) }
+    var isLoadingExisting by remember { mutableStateOf(isEditMode) }
     var showSuccess by remember { mutableStateOf(false) }
     var hasSubmitted by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
+    var addressLine1 by remember { mutableStateOf("") }
+    var city by remember { mutableStateOf("") }
+    var state by remember { mutableStateOf("") }
+    var postalCode by remember { mutableStateOf("") }
+    var country by remember { mutableStateOf(existingClient?.country ?: "India") }
+    var countryDropdownOpen by remember { mutableStateOf(false) }
+    val countries = listOf("India", "USA", "UK", "UAE", "Australia", "Canada", "Singapore")
 
-    if (isSaving) {
+    var taxNumber by remember { mutableStateOf("") }
+    var notes by remember { mutableStateOf("") }
+
+    LaunchedEffect(clientId) {
+        if (isEditMode) {
+            try {
+                existingClient = FirestoreDataRepository.getClient(clientId!!)
+                    ?: error("Client not found.")
+                existingClient?.let { client ->
+                    name = client.name
+                    email = client.email.orEmpty()
+                    phone = client.phone
+                    addressLine1 = client.address
+                    city = client.city
+                    state = client.state
+                    postalCode = client.postalCode
+                    country = client.country
+                    taxNumber = client.taxNumber
+                    notes = client.notes
+                }
+            } catch (exception: Exception) {
+                errorMessage = exception.localizedMessage ?: "Unable to load client."
+            } finally {
+                isLoadingExisting = false
+            }
+        }
+    }
+
+    fun saveClient() {
+        hasSubmitted = true
+        if (name.isBlank()) return
+        coroutineScope.launch {
+            isSaving = true
+            errorMessage = ""
+            try {
+                FirestoreDataRepository.saveClient(
+                    Client(
+                        id = if (isEditMode) clientId!! else "",
+                        name = name.trim(),
+                        email = email.trim().ifBlank { null },
+                        phone = phone.trim(),
+                        address = addressLine1.trim(),
+                        city = city.trim(),
+                        state = state.trim(),
+                        postalCode = postalCode.trim(),
+                        country = country,
+                        taxNumber = taxNumber.trim(),
+                        notes = notes.trim(),
+                        invoiceCount = existingClient?.invoiceCount ?: 0,
+                        totalBilled = existingClient?.totalBilled ?: 0.0,
+                        totalPaid = existingClient?.totalPaid ?: 0.0,
+                        totalDue = existingClient?.totalDue ?: 0.0,
+                        isArchived = existingClient?.isArchived ?: false
+                    )
+                )
+                showSuccess = true
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                errorMessage = exception.localizedMessage ?: "Unable to save client."
+            } finally {
+                isSaving = false
+            }
+        }
+    }
+
+    if (isLoadingExisting || isSaving) {
         StateScreen(
             type = StateType.LOADING,
-            message = "Saving client details..."
+            message = if (isLoadingExisting) "Loading client details..." else "Saving client details..."
+        )
+        return
+    }
+
+    if (errorMessage.isNotBlank()) {
+        StateScreen(
+            type = StateType.ERROR,
+            title = "Client Error",
+            message = errorMessage,
+            onPrimaryClick = { errorMessage = "" },
+            onSecondaryClick = { errorMessage = "" }
         )
         return
     }
@@ -94,20 +182,6 @@ fun AddEditClientScreen(
         return
     }
 
-    var name by remember { mutableStateOf(existingClient?.name ?: "") }
-    var email by remember { mutableStateOf(existingClient?.email ?: "") }
-    var phone by remember { mutableStateOf(existingClient?.phone ?: "") }
-    var addressLine1 by remember { mutableStateOf(existingClient?.address ?: "") }
-    var city by remember { mutableStateOf(existingClient?.city ?: "") }
-    var state by remember { mutableStateOf(existingClient?.state ?: "") }
-    var postalCode by remember { mutableStateOf(existingClient?.postalCode ?: "") }
-    var country by remember { mutableStateOf(existingClient?.country ?: "India") }
-    var countryDropdownOpen by remember { mutableStateOf(false) }
-    val countries = listOf("India", "USA", "UK", "UAE", "Australia", "Canada", "Singapore")
-
-    var taxNumber by remember { mutableStateOf(existingClient?.taxNumber ?: "") }
-    var notes by remember { mutableStateOf(existingClient?.notes ?: "") }
-
     val screenTitle = if (isEditMode) "Edit Client" else "Add Client"
 
     Scaffold(
@@ -117,10 +191,7 @@ fun AddEditClientScreen(
                 onBackClick = onNavigateBack,
                 actions = {
                     TextButton(
-                        onClick = {
-                            showDemoToast(context, if (isEditMode) "Client updated!" else "Client added!")
-                            onNavigateBack()
-                        },
+                        onClick = ::saveClient,
                         modifier = Modifier.testTag("save_client_header_button")
                     ) {
                         Text("Save", color = OnPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
@@ -284,17 +355,7 @@ fun AddEditClientScreen(
             // Emerald "SAVE CLIENT" button
             WavesPrimaryButton(
                 text = "SAVE CLIENT",
-                onClick = {
-                    hasSubmitted = true
-                    if (name.isNotBlank()) {
-                        isSaving = true
-                        coroutineScope.launch {
-                            delay(600)
-                            isSaving = false
-                            showSuccess = true
-                        }
-                    }
-                }
+                onClick = ::saveClient
             )
 
             // Red outlined "DELETE CLIENT" button (edit mode only)
@@ -304,8 +365,17 @@ fun AddEditClientScreen(
                     icon = Icons.Filled.Delete,
                     isDestructive = true,
                     onClick = {
-                        showDemoToast(context, "Client deleted (demo)")
-                        onNavigateBack()
+                        coroutineScope.launch {
+                            isSaving = true
+                            try {
+                                FirestoreDataRepository.deleteClient(clientId!!)
+                                onNavigateBack()
+                            } catch (exception: Exception) {
+                                errorMessage = exception.localizedMessage ?: "Unable to delete client."
+                            } finally {
+                                isSaving = false
+                            }
+                        }
                     }
                 )
             }

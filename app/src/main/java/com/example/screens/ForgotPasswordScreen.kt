@@ -1,6 +1,5 @@
 package com.example.screens
 
-import android.net.Uri
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -34,17 +33,17 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.FirebaseAuthRepository
+import com.example.data.authErrorMessage
 import com.example.components.StateScreen
 import com.example.components.StateType
 import com.example.components.WavesTextField
-import com.example.components.showDemoToast
 import com.example.ui.theme.AccentCyan
 import com.example.ui.theme.BackgroundColor
 import com.example.ui.theme.ButtonTextStyle
@@ -52,28 +51,51 @@ import com.example.ui.theme.EmeraldInk
 import com.example.ui.theme.OnPrimary
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @Composable
 fun ForgotPasswordScreen(
     onNavigateBack: () -> Unit,
-    onNavigateToOtp: (String) -> Unit,
+    onNavigateToLogIn: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var email by remember { mutableStateOf("") }
     var hasSubmitted by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
+    var requestSent by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
 
     val isEmailValid = email.isNotBlank() && email.contains("@") && email.contains(".")
     val emailError = if (hasSubmitted && !isEmailValid) "Enter a valid email" else null
 
+    if (requestSent) {
+        StateScreen(
+            type = StateType.SUCCESS,
+            title = "Check your email",
+            message = "If an account exists for this email, password reset instructions are on their way.",
+            primaryButtonText = "BACK TO LOG IN",
+            onPrimaryClick = onNavigateToLogIn
+        )
+        return
+    }
+
+    if (errorMessage.isNotEmpty()) {
+        StateScreen(
+            type = StateType.ERROR,
+            title = "Couldn't send reset email",
+            message = errorMessage,
+            onPrimaryClick = { errorMessage = "" },
+            onSecondaryClick = { errorMessage = "" }
+        )
+        return
+    }
+
     if (isLoading) {
         StateScreen(
             type = StateType.LOADING,
-            message = "Sending 6-digit OTP code..."
+            message = "Sending password reset link..."
         )
         return
     }
@@ -142,7 +164,7 @@ fun ForgotPasswordScreen(
             // 3. Subtitle "Enter your registered email to reset password" — 14sp #6B7280, centered, top 8dp
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Enter your registered email to reset password",
+                text = "Enter your registered email to receive a secure password reset link",
                 fontSize = 14.sp,
                 color = TextSecondary,
                 textAlign = TextAlign.Center,
@@ -161,7 +183,7 @@ fun ForgotPasswordScreen(
                 errorMessage = emailError
             )
 
-            // 5. Emerald "SEND OTP" button — top 32dp
+            // 5. Emerald reset-link button — top 32dp
             Spacer(modifier = Modifier.height(32.dp))
             Button(
                 onClick = {
@@ -169,10 +191,16 @@ fun ForgotPasswordScreen(
                     if (isEmailValid) {
                         isLoading = true
                         coroutineScope.launch {
-                            delay(700)
-                            isLoading = false
-                            showDemoToast(context, "Verification code sent to $email")
-                            onNavigateToOtp(email)
+                            try {
+                                FirebaseAuthRepository.sendPasswordResetEmail(email)
+                                requestSent = true
+                            } catch (exception: CancellationException) {
+                                throw exception
+                            } catch (exception: Exception) {
+                                errorMessage = authErrorMessage(exception)
+                            } finally {
+                                isLoading = false
+                            }
                         }
                     }
                 },
@@ -190,7 +218,7 @@ fun ForgotPasswordScreen(
                 )
             ) {
                 Text(
-                    text = "SEND OTP",
+                    text = "SEND RESET LINK",
                     style = ButtonTextStyle,
                     color = OnPrimary
                 )

@@ -26,6 +26,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,7 +34,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -47,7 +47,11 @@ import com.example.components.WavesFAB
 import com.example.components.WavesHeader
 import com.example.components.WavesNavTab
 import com.example.components.WavesTextField
+import com.example.components.StateScreen
+import com.example.components.StateType
 import com.example.components.showDemoToast
+import com.example.data.FirestoreDataRepository
+import com.example.data.FirestoreState
 import com.example.data.SampleData
 import com.example.ui.theme.BackgroundColor
 import com.example.ui.theme.DangerRed
@@ -64,12 +68,23 @@ fun ClientListScreen(
     onNavigateToTab: (WavesNavTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     var selectedFilter by remember { mutableStateOf("All") }
     var searchQuery by remember { mutableStateOf("") }
     var isSearchVisible by remember { mutableStateOf(false) }
 
-    val allClients = SampleData.clients
+    val clientState by remember { FirestoreDataRepository.observeClients() }
+        .collectAsState(initial = FirestoreState.Loading)
+    val allClients = when (val state = clientState) {
+        FirestoreState.Loading -> {
+            StateScreen(type = StateType.LOADING, message = "Loading clients...")
+            return
+        }
+        is FirestoreState.Failure -> {
+            StateScreen(type = StateType.ERROR, message = state.message)
+            return
+        }
+        is FirestoreState.Data -> state.value
+    }
     val filteredClients = allClients.filter { client ->
         val matchesFilter = when (selectedFilter) {
             "Active" -> !client.isArchived

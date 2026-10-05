@@ -1,6 +1,5 @@
 package com.example.screens
 
-import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -49,40 +48,54 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.FirebaseAuthRepository
+import com.example.data.authErrorMessage
 import com.example.components.StateScreen
 import com.example.components.StateType
 import com.example.components.WavesHeader
 import com.example.components.WavesPrimaryButton
 import com.example.components.WavesTextField
-import com.example.components.showDemoToast
 import com.example.ui.theme.AccentCyan
 import com.example.ui.theme.BackgroundColor
 import com.example.ui.theme.BorderGray
 import com.example.ui.theme.EmeraldInk
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.DangerRed
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @Composable
 fun SignUpScreen(
     onNavigateBack: () -> Unit,
     onNavigateToLogIn: () -> Unit,
-    onNavigateToOtp: (String) -> Unit,
+    onNavigateToVerifyEmail: (String, Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    var fullName by remember { mutableStateOf("Rahul Sharma") }
-    var email by remember { mutableStateOf("rahul@email.com") }
-    var password by remember { mutableStateOf("Password123") }
+    var fullName by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
-    var agreeToTerms by remember { mutableStateOf(true) }
+    var agreeToTerms by remember { mutableStateOf(false) }
     var hasSubmitted by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
 
     val fullNameError = if (hasSubmitted && fullName.isBlank()) "Full name is required" else null
     val emailError = if (hasSubmitted && (!email.contains("@") || !email.contains("."))) "Enter a valid email" else null
     val passwordError = if (hasSubmitted && password.length < 6) "Password must be at least 6 characters" else null
+
+    if (errorMessage.isNotEmpty()) {
+        StateScreen(
+            type = StateType.ERROR,
+            title = "Account Creation Failed",
+            message = errorMessage,
+            onPrimaryClick = { errorMessage = "" },
+            onSecondaryClick = { errorMessage = "" }
+        )
+        return
+    }
 
     if (isLoading) {
         StateScreen(
@@ -184,6 +197,14 @@ fun SignUpScreen(
                     color = TextPrimary
                 )
             }
+            if (hasSubmitted && !agreeToTerms) {
+                Text(
+                    text = "You must agree to the terms to create an account.",
+                    fontSize = 12.sp,
+                    color = DangerRed,
+                    modifier = Modifier.padding(start = 12.dp)
+                )
+            }
 
             Spacer(modifier = Modifier.height(4.dp))
 
@@ -191,13 +212,24 @@ fun SignUpScreen(
                 text = "CREATE ACCOUNT",
                 onClick = {
                     hasSubmitted = true
-                    if (fullName.isNotBlank() && email.contains("@") && email.contains(".") && password.length >= 6) {
+                    if (fullName.isNotBlank() && email.contains("@") && email.contains(".") && password.length >= 6 && agreeToTerms) {
                         isLoading = true
                         coroutineScope.launch {
-                            kotlinx.coroutines.delay(800)
-                            isLoading = false
-                            showDemoToast(context, "Verification code sent to $email")
-                            onNavigateToOtp(email)
+                            try {
+                                val result = FirebaseAuthRepository.register(
+                                    fullName = fullName,
+                                    email = email,
+                                    password = password,
+                                    termsAccepted = agreeToTerms
+                                )
+                                onNavigateToVerifyEmail(email, result.verificationEmailSent)
+                            } catch (exception: CancellationException) {
+                                throw exception
+                            } catch (exception: Exception) {
+                                errorMessage = authErrorMessage(exception)
+                            } finally {
+                                isLoading = false
+                            }
                         }
                     }
                 }

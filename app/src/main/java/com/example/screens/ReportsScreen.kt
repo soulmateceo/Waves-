@@ -28,6 +28,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -47,7 +48,12 @@ import com.example.components.WavesHeader
 import com.example.components.WavesNavTab
 import com.example.components.WavesSecondaryButton
 import com.example.components.showDemoToast
-import com.example.data.SampleData
+import com.example.components.StateScreen
+import com.example.components.StateType
+import com.example.data.FirestoreDataRepository
+import com.example.data.FirestoreState
+import com.example.data.InvoiceStatus
+import com.example.data.ReportDateUtils
 import com.example.ui.theme.BackgroundColor
 import com.example.ui.theme.DangerRed
 import com.example.ui.theme.EmeraldInk
@@ -68,6 +74,47 @@ fun ReportsScreen(
     val context = LocalContext.current
     val months = listOf("Aug 2026", "Sep 2026", "Oct 2026", "Nov 2026")
     var currentMonthIndex by remember { mutableIntStateOf(2) }
+    val invoiceState by remember { FirestoreDataRepository.observeInvoices() }
+        .collectAsState(initial = FirestoreState.Loading)
+    val allInvoices = when (val state = invoiceState) {
+        FirestoreState.Loading -> {
+            StateScreen(type = StateType.LOADING, message = "Loading reports...")
+            return
+        }
+        is FirestoreState.Failure -> {
+            StateScreen(type = StateType.ERROR, title = "Report Error", message = state.message)
+            return
+        }
+        is FirestoreState.Data -> state.value
+    }
+    val monthParts = months[currentMonthIndex].split(' ')
+    val reportMonthKey = ReportDateUtils.monthKey(
+        monthParts[1].toInt(),
+        listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+            .indexOf(monthParts[0])
+    )
+    val monthInvoices = allInvoices.filter { ReportDateUtils.monthKey(it.issueDate) == reportMonthKey }
+    val activeMonthInvoices = monthInvoices.filterNot { it.status == InvoiceStatus.CANCELLED }
+    val invoicedAmount = activeMonthInvoices.sumOf { it.grandTotal }
+    val collectedAmount = allInvoices.sumOf { invoice ->
+        invoice.payments.filter { ReportDateUtils.monthKey(it.date) == reportMonthKey }
+            .sumOf { it.amount }
+    }
+    val outstandingAmount = activeMonthInvoices.sumOf { it.balanceDue }
+    val statusCounts = mapOf(
+        "Paid" to monthInvoices.count { it.status == InvoiceStatus.PAID },
+        "Half Paid" to monthInvoices.count { it.status == InvoiceStatus.HALF_PAID },
+        "Pending" to monthInvoices.count { it.status == InvoiceStatus.PENDING },
+        "Overdue" to monthInvoices.count { it.status == InvoiceStatus.OVERDUE },
+        "Cancelled" to monthInvoices.count { it.status == InvoiceStatus.CANCELLED || it.status == InvoiceStatus.WRITTEN_OFF }
+    )
+    val topClients = monthInvoices.filterNot { it.status == InvoiceStatus.CANCELLED }
+        .groupBy { it.clientId }
+        .map { (_, invoices) ->
+            Triple(invoices.first().clientName, invoices.size, invoices.sumOf { it.grandTotal })
+        }
+        .sortedByDescending { it.third }
+        .take(5)
 
     Scaffold(
         topBar = {
@@ -158,13 +205,13 @@ fun ReportsScreen(
             ) {
                 StatGridItem(
                     label = "Invoiced",
-                    value = "₹1,25,000",
+                    value = formatCurrency(invoicedAmount),
                     valueColor = TextPrimary,
                     modifier = Modifier.weight(1f)
                 )
                 StatGridItem(
                     label = "Collected",
-                    value = "₹98,500",
+                    value = formatCurrency(collectedAmount),
                     valueColor = SuccessGreen,
                     modifier = Modifier.weight(1f)
                 )
@@ -176,13 +223,13 @@ fun ReportsScreen(
             ) {
                 StatGridItem(
                     label = "Outstanding",
-                    value = "₹26,500",
+                    value = formatCurrency(outstandingAmount),
                     valueColor = DangerRed,
                     modifier = Modifier.weight(1f)
                 )
                 StatGridItem(
                     label = "Total Invoices",
-                    value = "12",
+                    value = monthInvoices.size.toString(),
                     valueColor = EmeraldInk,
                     modifier = Modifier.weight(1f)
                 )
@@ -192,11 +239,11 @@ fun ReportsScreen(
             SectionHeader(title = "STATUS BREAKDOWN")
             WavesCard {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    BreakdownBarRow(label = "Paid", count = 8, total = 13, barColor = SuccessGreen)
-                    BreakdownBarRow(label = "Half Paid", count = 2, total = 13, barColor = WarningAmber)
-                    BreakdownBarRow(label = "Pending", count = 1, total = 13, barColor = NeutralGray)
-                    BreakdownBarRow(label = "Overdue", count = 1, total = 13, barColor = DangerRed)
-                    BreakdownBarRow(label = "Cancelled", count = 1, total = 13, barColor = Color.LightGray)
+                    BreakdownBarRow(label = "Paid", count = statusCounts.getValue("Paid"), total = monthInvoices.size, barColor = SuccessGreen)
+                    BreakdownBarRow(label = "Half Paid", count = statusCounts.getValue("Half Paid"), total = monthInvoices.size, barColor = WarningAmber)
+                    BreakdownBarRow(label = "Pending", count = statusCounts.getValue("Pending"), total = monthInvoices.size, barColor = NeutralGray)
+                    BreakdownBarRow(label = "Overdue", count = statusCounts.getValue("Overdue"), total = monthInvoices.size, barColor = DangerRed)
+                    BreakdownBarRow(label = "Cancelled", count = statusCounts.getValue("Cancelled"), total = monthInvoices.size, barColor = Color.LightGray)
                 }
             }
 
@@ -204,7 +251,7 @@ fun ReportsScreen(
             SectionHeader(title = "TOP CLIENTS")
             WavesCard {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SampleData.clients.forEachIndexed { index, client ->
+                    topClients.forEachIndexed { index, client ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
@@ -231,20 +278,20 @@ fun ReportsScreen(
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column {
                                     Text(
-                                        text = client.name,
+                                        text = client.first,
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = TextPrimary
                                     )
                                     Text(
-                                        text = "${client.invoiceCount} invoices",
+                                        text = "${client.second} invoices",
                                         fontSize = 11.sp,
                                         color = TextSecondary
                                     )
                                 }
                             }
                             Text(
-                                text = SampleData.formatCurrency(client.totalBilled),
+                                text = formatCurrency(client.third),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextPrimary
@@ -278,6 +325,8 @@ fun ReportsScreen(
         }
     }
 }
+
+private fun formatCurrency(amount: Double) = "₹%,.0f".format(amount)
 
 @Composable
 private fun StatGridItem(

@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,6 +34,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -47,6 +50,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.FirestoreDataRepository
+import com.example.data.FirestoreState
+import com.example.data.Invoice
+import com.example.data.InvoiceStatus
+import com.example.data.Product
+import com.example.data.ReportDateUtils
+import com.example.data.SampleData
 import com.example.components.StateScreen
 import com.example.components.StateType
 import com.example.components.WavesCard
@@ -55,9 +65,7 @@ import com.example.components.WavesPrimaryButton
 import com.example.components.WavesSecondaryButton
 import com.example.components.WavesTextField
 import com.example.components.showDemoToast
-import com.example.data.Client
 import com.example.data.InvoiceItem
-import com.example.data.SampleData
 import com.example.ui.theme.AccentCyan
 import com.example.ui.theme.BackgroundColor
 import com.example.ui.theme.BorderGray
@@ -68,7 +76,7 @@ import com.example.ui.theme.OnPrimary
 import com.example.ui.theme.SurfaceColor
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @Composable
@@ -81,12 +89,31 @@ fun CreateInvoiceScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    var invoiceNumber by remember { mutableStateOf("INV-004") }
-    var issueDate by remember { mutableStateOf("04 Oct 2026") }
-    var dueDate by remember { mutableStateOf("19 Oct 2026") }
+    var invoiceNumber by remember { mutableStateOf("") }
+    var issueDate by remember { mutableStateOf(ReportDateUtils.displayDate(ReportDateUtils.currentDate())) }
+    var dueDate by remember { mutableStateOf(ReportDateUtils.displayDate(ReportDateUtils.dateAfterDays(ReportDateUtils.currentDate(), 15))) }
 
     var isSaving by remember { mutableStateOf(false) }
     var showSuccess by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
+
+    val clientState by remember { FirestoreDataRepository.observeClients() }
+        .collectAsState(initial = FirestoreState.Loading)
+    val productState by remember { FirestoreDataRepository.observeProducts() }
+        .collectAsState(initial = FirestoreState.Loading)
+    val businessState by remember { FirestoreDataRepository.observeBusinessProfile() }
+        .collectAsState(initial = FirestoreState.Loading)
+    val clients = (clientState as? FirestoreState.Data)?.value.orEmpty()
+    val products = (productState as? FirestoreState.Data)?.value.orEmpty().filterNot { it.isArchived }
+    val business = (businessState as? FirestoreState.Data)?.value
+
+    LaunchedEffect(Unit) {
+        try {
+            invoiceNumber = FirestoreDataRepository.getNextInvoiceNumber()
+        } catch (exception: Exception) {
+            errorMessage = exception.localizedMessage ?: "Unable to prepare invoice number."
+        }
+    }
 
     if (isSaving) {
         StateScreen(
@@ -110,25 +137,143 @@ fun CreateInvoiceScreen(
         return
     }
 
-    val clients = SampleData.clients
-    var selectedClient by remember { mutableStateOf<Client?>(clients.firstOrNull()) }
+    var selectedClient by remember { mutableStateOf<com.example.data.Client?>(null) }
     var clientDropdownOpen by remember { mutableStateOf(false) }
 
-    val items = remember {
-        mutableStateListOf(
-            InvoiceItem("i1", "Website Design", 1, 5000.0, 18.0),
-            InvoiceItem("i2", "Hosting (annual)", 1, 2000.0, 18.0)
-        )
-    }
+    val items = remember { mutableStateListOf<InvoiceItem>() }
 
     var discountStr by remember { mutableStateOf("0") }
-    var notes by remember { mutableStateOf("Thank you for your business! Payment is due within 15 days.") }
-    var terms by remember { mutableStateOf("Net 15 Days. Standard late payment fees apply.") }
+    var notes by remember { mutableStateOf("") }
+    var terms by remember { mutableStateOf("") }
+    var productPickerOpen by remember { mutableStateOf(false) }
+    var itemEditorOpen by remember { mutableStateOf(false) }
+    var editingItemIndex by remember { mutableStateOf<Int?>(null) }
+    var itemName by remember { mutableStateOf("") }
+    var itemQuantity by remember { mutableStateOf("1") }
+    var itemUnitPrice by remember { mutableStateOf("") }
+    var itemTaxRate by remember { mutableStateOf(business?.defaultTaxRate?.toString() ?: "18") }
+
+    LaunchedEffect(business) {
+        if (business != null) {
+            if (notes.isBlank()) notes = business.defaultNotes
+            if (terms.isBlank()) terms = business.paymentTerms
+        }
+    }
 
     val subtotal = items.sumOf { it.subtotal }
     val discount = discountStr.toDoubleOrNull() ?: 0.0
     val taxAmount = items.sumOf { it.taxAmount }
     val grandTotal = (subtotal - discount).coerceAtLeast(0.0) + taxAmount
+
+    fun openItemEditor(index: Int? = null) {
+        editingItemIndex = index
+        val item = index?.let(items::getOrNull)
+        itemName = item?.name.orEmpty()
+        itemQuantity = item?.quantity?.toString() ?: "1"
+        itemUnitPrice = item?.unitPrice?.takeIf { it > 0.0 }?.toString().orEmpty()
+        itemTaxRate = item?.taxRate?.toString() ?: business?.defaultTaxRate?.toString() ?: "18"
+        itemEditorOpen = true
+    }
+
+    fun saveItemEditor() {
+        val quantity = itemQuantity.toIntOrNull()
+        val unitPrice = itemUnitPrice.toDoubleOrNull()
+        val taxRate = itemTaxRate.toDoubleOrNull()
+        if (itemName.isBlank() || quantity == null || quantity < 1 || unitPrice == null || unitPrice < 0.0 || taxRate == null || taxRate < 0.0) {
+            showDemoToast(context, "Enter a name, valid quantity, price, and tax rate.")
+            return
+        }
+        val item = InvoiceItem(
+            id = editingItemIndex?.let(items::getOrNull)?.id ?: "item_${System.currentTimeMillis()}",
+            name = itemName.trim(),
+            quantity = quantity,
+            unitPrice = unitPrice,
+            taxRate = taxRate
+        )
+        val index = editingItemIndex
+        if (index == null) items.add(item) else items[index] = item
+        itemEditorOpen = false
+    }
+
+    val isLoadingData = clientState is FirestoreState.Loading ||
+        productState is FirestoreState.Loading || businessState is FirestoreState.Loading
+    val dataError = (clientState as? FirestoreState.Failure)?.message
+        ?: (productState as? FirestoreState.Failure)?.message
+        ?: (businessState as? FirestoreState.Failure)?.message
+
+    if (isLoadingData || isSaving) {
+        StateScreen(
+            type = StateType.LOADING,
+            message = if (isLoadingData) "Loading invoice data..." else "Saving invoice..."
+        )
+        return
+    }
+    if (dataError != null || errorMessage.isNotBlank()) {
+        StateScreen(
+            type = StateType.ERROR,
+            title = "Invoice Error",
+            message = errorMessage.ifBlank { dataError.orEmpty() },
+            onPrimaryClick = { errorMessage = "" },
+            onSecondaryClick = { errorMessage = "" }
+        )
+        return
+    }
+
+    fun saveInvoice() {
+        val client = selectedClient
+        if (client == null) {
+            errorMessage = "Select a client before saving the invoice."
+            return
+        }
+        if (items.isEmpty()) {
+            errorMessage = "Add at least one product or service."
+            return
+        }
+        val issueDateValue = ReportDateUtils.parse(issueDate)
+        val dueDateValue = ReportDateUtils.parse(dueDate)
+        if (issueDateValue == null || dueDateValue == null) {
+            errorMessage = "Enter dates as day month year, for example 04 Oct 2026."
+            return
+        }
+        if (dueDateValue.before(issueDateValue)) {
+            errorMessage = "Due date cannot be before the issue date."
+            return
+        }
+        if (discount < 0.0 || discount > subtotal) {
+            errorMessage = "Discount cannot exceed the subtotal."
+            return
+        }
+
+        coroutineScope.launch {
+            isSaving = true
+            errorMessage = ""
+            try {
+                invoiceNumber = FirestoreDataRepository.createInvoice(
+                    Invoice(
+                        id = invoiceNumber,
+                        clientId = client.id,
+                        clientName = client.name,
+                        clientEmail = client.email,
+                        issueDate = ReportDateUtils.displayDate(issueDateValue),
+                        dueDate = ReportDateUtils.displayDate(dueDateValue),
+                        items = items.toList(),
+                        discount = discount,
+                        status = InvoiceStatus.PENDING,
+                        paidAmount = 0.0,
+                        notes = notes,
+                        terms = terms
+                    )
+                )
+                showSuccess = true
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                errorMessage = exception.localizedMessage ?: "Unable to save invoice."
+            } finally {
+                isSaving = false
+            }
+        }
+    }
 
     // Compute average tax rate for display (since different items may differ)
     val averageTaxRate = if (items.isEmpty()) 0.0
@@ -141,10 +286,7 @@ fun CreateInvoiceScreen(
                 onBackClick = onNavigateBack,
                 actions = {
                     TextButton(
-                        onClick = {
-                            showDemoToast(context, "Draft saved!")
-                            onNavigateToPreview(invoiceNumber)
-                        },
+                        onClick = ::saveInvoice,
                         modifier = Modifier.testTag("invoice_save_header_button")
                     ) {
                         Text(
@@ -289,9 +431,7 @@ fun CreateInvoiceScreen(
                                 )
                                 Row {
                                     IconButton(
-                                        onClick = {
-                                            showDemoToast(context, "Editing ${item.name}")
-                                        },
+                                        onClick = { openItemEditor(index) },
                                         modifier = Modifier.size(32.dp)
                                     ) {
                                         Icon(
@@ -350,40 +490,45 @@ fun CreateInvoiceScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    WavesSecondaryButton(
-                        text = "+ From Products",
-                        onClick = {
-                            val nextProduct = SampleData.products
-                                .getOrNull(items.size % SampleData.products.size)
-                                ?: SampleData.products.first()
-                            items.add(
-                                InvoiceItem(
-                                    id = "i_${System.currentTimeMillis()}",
-                                    name = nextProduct.name,
-                                    quantity = 1,
-                                    unitPrice = nextProduct.unitPrice,
-                                    taxRate = nextProduct.taxRate
+                    Box(modifier = Modifier.weight(1f)) {
+                        WavesSecondaryButton(
+                            text = "+ From Products",
+                            onClick = {
+                                if (products.isEmpty()) {
+                                    showDemoToast(context, "Add a product or service first.")
+                                } else {
+                                    productPickerOpen = true
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        DropdownMenu(
+                            expanded = productPickerOpen,
+                            onDismissRequest = { productPickerOpen = false }
+                        ) {
+                            products.forEach { product ->
+                                DropdownMenuItem(
+                                    text = { Text(product.name) },
+                                    onClick = {
+                                        items.add(
+                                            InvoiceItem(
+                                                id = "item_${System.currentTimeMillis()}",
+                                                name = product.name,
+                                                quantity = product.defaultQuantity,
+                                                unitPrice = product.unitPrice,
+                                                taxRate = product.taxRate
+                                            )
+                                        )
+                                        productPickerOpen = false
+                                    }
                                 )
-                            )
-                            showDemoToast(context, "Added ${nextProduct.name}")
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
+                            }
+                        }
+                    }
 
                     WavesSecondaryButton(
                         text = "+ Custom Item",
-                        onClick = {
-                            items.add(
-                                InvoiceItem(
-                                    id = "i_${System.currentTimeMillis()}",
-                                    name = "Consulting & Retainer",
-                                    quantity = 1,
-                                    unitPrice = 1500.0,
-                                    taxRate = 18.0
-                                )
-                            )
-                            showDemoToast(context, "Added custom item")
-                        },
+                        onClick = { openItemEditor() },
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -498,17 +643,54 @@ fun CreateInvoiceScreen(
             // ===== PREVIEW & SAVE =====
             WavesPrimaryButton(
                 text = "PREVIEW & SAVE",
-                onClick = {
-                    isSaving = true
-                    coroutineScope.launch {
-                        delay(600)
-                        isSaving = false
-                        showSuccess = true
-                    }
-                }
+                onClick = ::saveInvoice
             )
 
             Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+
+    if (itemEditorOpen) {
+        AlertDialog(
+            onDismissRequest = { itemEditorOpen = false },
+            title = { Text(if (editingItemIndex == null) "Custom item" else "Edit invoice item") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    WavesTextField(
+                        value = itemName,
+                        onValueChange = { itemName = it },
+                        label = "Item name"
+                    )
+                    WavesTextField(
+                        value = itemQuantity,
+                        onValueChange = { itemQuantity = it },
+                        label = "Quantity",
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                    WavesTextField(
+                        value = itemUnitPrice,
+                        onValueChange = { itemUnitPrice = it },
+                        label = "Unit price",
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                    )
+                    WavesTextField(
+                        value = itemTaxRate,
+                        onValueChange = { itemTaxRate = it },
+                        label = "Tax rate %",
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = ::saveItemEditor) {
+                    Text(if (editingItemIndex == null) "Add" else "Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { itemEditorOpen = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }

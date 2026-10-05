@@ -28,9 +28,11 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,6 +46,10 @@ import com.example.components.WavesHeader
 import com.example.components.WavesPrimaryButton
 import com.example.components.WavesTextField
 import com.example.components.showDemoToast
+import com.example.components.StateScreen
+import com.example.components.StateType
+import com.example.data.FirestoreDataRepository
+import com.example.data.FirestoreState
 import com.example.ui.theme.AccentCyan
 import com.example.ui.theme.BackgroundColor
 import com.example.ui.theme.EmeraldInk
@@ -51,6 +57,8 @@ import com.example.ui.theme.InputBorderGray
 import com.example.ui.theme.OnPrimary
 import com.example.ui.theme.SurfaceColor
 import com.example.ui.theme.TextSecondary
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
 /**
  * Country → Tax label + tax number format hint.
@@ -84,14 +92,69 @@ fun TaxSettingsScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val profileState by remember { FirestoreDataRepository.observeBusinessProfile() }
+        .collectAsState(initial = FirestoreState.Loading)
+    val profile = when (val state = profileState) {
+        FirestoreState.Loading -> {
+            StateScreen(type = StateType.LOADING, message = "Loading tax settings...")
+            return
+        }
+        is FirestoreState.Failure -> {
+            StateScreen(type = StateType.ERROR, title = "Tax Settings Error", message = state.message)
+            return
+        }
+        is FirestoreState.Data -> state.value
+    }
 
-    var selectedCountry by remember { mutableStateOf("India") }
+    var isSaving by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
+    var selectedCountry by remember { mutableStateOf(profile.country) }
     var countryDropdownOpen by remember { mutableStateOf(false) }
 
-    val initial = countryTaxMap.first { it.country == "India" }
-    var taxLabel by remember { mutableStateOf(initial.label) }
+    val initial = countryTaxMap.find { it.country == selectedCountry } ?: countryTaxMap.first()
+    var taxLabel by remember { mutableStateOf(profile.taxLabel.ifBlank { initial.label }) }
     var taxFormatHint by remember { mutableStateOf(initial.formatHint) }
-    var taxNumber by remember { mutableStateOf("") }
+    var taxNumber by remember { mutableStateOf(profile.taxNumber) }
+
+    fun saveTaxSettings() {
+        coroutineScope.launch {
+            isSaving = true
+            errorMessage = ""
+            try {
+                FirestoreDataRepository.saveBusinessProfile(
+                    profile.copy(
+                        country = selectedCountry,
+                        taxLabel = taxLabel,
+                        taxNumber = taxNumber
+                    )
+                )
+                showDemoToast(context, "Tax settings saved successfully!")
+                onNavigateBack()
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                errorMessage = exception.localizedMessage ?: "Unable to save tax settings."
+            } finally {
+                isSaving = false
+            }
+        }
+    }
+
+    if (isSaving) {
+        StateScreen(type = StateType.LOADING, message = "Saving tax settings...")
+        return
+    }
+    if (errorMessage.isNotBlank()) {
+        StateScreen(
+            type = StateType.ERROR,
+            title = "Tax Settings Error",
+            message = errorMessage,
+            onPrimaryClick = { errorMessage = "" },
+            onSecondaryClick = { errorMessage = "" }
+        )
+        return
+    }
 
     fun updateDefaultsForCountry(country: String) {
         val config = countryTaxMap.find { it.country == country } ?: return
@@ -108,10 +171,7 @@ fun TaxSettingsScreen(
                 onBackClick = onNavigateBack,
                 actions = {
                     TextButton(
-                        onClick = {
-                            showDemoToast(context, "Tax settings updated!")
-                            onNavigateBack()
-                        },
+                        onClick = ::saveTaxSettings,
                         modifier = Modifier.testTag("tax_settings_save_button")
                     ) {
                         Text(
@@ -231,10 +291,7 @@ fun TaxSettingsScreen(
             // ===== SAVE BUTTON =====
             WavesPrimaryButton(
                 text = "SAVE TAX SETTINGS",
-                onClick = {
-                    showDemoToast(context, "Tax settings saved successfully!")
-                    onNavigateBack()
-                }
+                onClick = ::saveTaxSettings
             )
 
             Spacer(modifier = Modifier.height(24.dp))

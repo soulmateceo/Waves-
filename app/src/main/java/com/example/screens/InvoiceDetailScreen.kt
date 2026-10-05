@@ -44,10 +44,12 @@ import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,6 +70,10 @@ import com.example.components.WavesSecondaryButton
 import com.example.components.WavesTextField
 import com.example.components.showDemoToast
 import com.example.data.InvoiceStatus
+import com.example.data.FirestoreDataRepository
+import com.example.data.FirestoreState
+import com.example.data.PaymentRecord
+import com.example.data.ReportDateUtils
 import com.example.data.SampleData
 import com.example.ui.theme.AccentCyan
 import com.example.ui.theme.BackgroundColor
@@ -80,6 +86,8 @@ import com.example.ui.theme.SuccessGreen
 import com.example.ui.theme.SurfaceColor
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -90,15 +98,39 @@ fun InvoiceDetailScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val invoice = SampleData.invoices.find { it.id == invoiceId } ?: SampleData.invoices.last()
-
-    var status by remember { mutableStateOf(invoice.status) }
-    var paidAmount by remember { mutableDoubleStateOf(invoice.paidAmount) }
+    val coroutineScope = rememberCoroutineScope()
+    val invoiceState by remember(invoiceId) { FirestoreDataRepository.observeInvoice(invoiceId) }
+        .collectAsState(initial = FirestoreState.Loading)
     var showPaymentSheet by remember { mutableStateOf(false) }
     var menuExpanded by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    val balanceDue = (invoice.grandTotal - paidAmount).coerceAtLeast(0.0)
+    val invoice = when (val state = invoiceState) {
+        FirestoreState.Loading -> {
+            com.example.components.StateScreen(type = com.example.components.StateType.LOADING, message = "Loading invoice...")
+            return
+        }
+        is FirestoreState.Failure -> {
+            com.example.components.StateScreen(type = com.example.components.StateType.ERROR, title = "Invoice Error", message = state.message)
+            return
+        }
+        is FirestoreState.Data -> state.value ?: run {
+            com.example.components.StateScreen(type = com.example.components.StateType.ERROR, title = "Invoice Not Found", message = "This invoice may have been deleted.")
+            return
+        }
+    }
+
+    val balanceDue = invoice.balanceDue
+
+    fun updateInvoiceStatus(status: InvoiceStatus) {
+        coroutineScope.launch {
+            try {
+                FirestoreDataRepository.updateInvoiceStatus(invoice.id, status)
+            } catch (exception: Exception) {
+                showDemoToast(context, exception.localizedMessage ?: "Unable to update invoice.")
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -132,15 +164,28 @@ fun InvoiceDetailScreen(
                                 text = { Text("Duplicate Invoice") },
                                 onClick = {
                                     menuExpanded = false
-                                    showDemoToast(context, "Invoice duplicated as INV-005")
+                                    coroutineScope.launch {
+                                        try {
+                                            FirestoreDataRepository.duplicateInvoice(invoice.id)
+                                            showDemoToast(context, "Invoice duplicated as a new pending invoice.")
+                                        } catch (exception: Exception) {
+                                            showDemoToast(context, exception.localizedMessage ?: "Unable to duplicate invoice.")
+                                        }
+                                    }
                                 }
                             )
                             DropdownMenuItem(
                                 text = { Text("Delete Invoice") },
                                 onClick = {
                                     menuExpanded = false
-                                    showDemoToast(context, "Invoice deleted")
-                                    onNavigateBack()
+                                    coroutineScope.launch {
+                                        try {
+                                            FirestoreDataRepository.deleteInvoice(invoice.id)
+                                            onNavigateBack()
+                                        } catch (exception: Exception) {
+                                            showDemoToast(context, exception.localizedMessage ?: "Unable to delete invoice.")
+                                        }
+                                    }
                                 }
                             )
                         }
@@ -193,7 +238,7 @@ fun InvoiceDetailScreen(
                         }
                     }
 
-                    StatusChip(status = status)
+                    StatusChip(status = invoice.status)
                 }
             }
 
@@ -338,7 +383,7 @@ fun InvoiceDetailScreen(
                     ) {
                         Text("Paid so far", fontSize = 13.sp, color = SuccessGreen)
                         Text(
-                            "-${SampleData.formatCurrency(paidAmount)}",
+                            "-${SampleData.formatCurrency(invoice.paidAmount)}",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = SuccessGreen
@@ -386,11 +431,7 @@ fun InvoiceDetailScreen(
                         text = "Mark Paid",
                         icon = Icons.Filled.CheckCircle,
                         isPrimary = false,
-                        onClick = {
-                            status = InvoiceStatus.PAID
-                            paidAmount = invoice.grandTotal
-                            showDemoToast(context, "Marked as Paid!")
-                        },
+                        onClick = { updateInvoiceStatus(InvoiceStatus.PAID) },
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -403,11 +444,7 @@ fun InvoiceDetailScreen(
                         text = "Mark Half Paid",
                         icon = Icons.Filled.Receipt,
                         isPrimary = false,
-                        onClick = {
-                            status = InvoiceStatus.HALF_PAID
-                            paidAmount = invoice.grandTotal / 2
-                            showDemoToast(context, "Marked as Half Paid")
-                        },
+                        onClick = { updateInvoiceStatus(InvoiceStatus.HALF_PAID) },
                         modifier = Modifier.weight(1f)
                     )
                     ActionButtonItem(
@@ -448,12 +485,7 @@ fun InvoiceDetailScreen(
                         icon = Icons.Filled.Cancel,
                         isPrimary = false,
                         isDestructive = true,
-                        onClick = {
-                            // WRITTEN_OFF = uncollectible. If your enum doesn't have it,
-                            // use CANCELLED for now.
-                            status = InvoiceStatus.WRITTEN_OFF
-                            showDemoToast(context, "Invoice written off")
-                        },
+                        onClick = { updateInvoiceStatus(InvoiceStatus.WRITTEN_OFF) },
                         modifier = Modifier.weight(1f)
                     )
                     ActionButtonItem(
@@ -461,10 +493,7 @@ fun InvoiceDetailScreen(
                         icon = Icons.Filled.Cancel,
                         isPrimary = false,
                         isDestructive = true,
-                        onClick = {
-                            status = InvoiceStatus.CANCELLED
-                            showDemoToast(context, "Invoice marked as Cancelled")
-                        },
+                        onClick = { updateInvoiceStatus(InvoiceStatus.CANCELLED) },
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -477,7 +506,16 @@ fun InvoiceDetailScreen(
                         text = "Duplicate",
                         icon = Icons.Filled.ContentCopy,
                         isPrimary = false,
-                        onClick = { showDemoToast(context, "Duplicated as draft") },
+                        onClick = {
+                            coroutineScope.launch {
+                                try {
+                                    FirestoreDataRepository.duplicateInvoice(invoice.id)
+                                    showDemoToast(context, "Invoice duplicated as a new pending invoice.")
+                                } catch (exception: Exception) {
+                                    showDemoToast(context, exception.localizedMessage ?: "Unable to duplicate invoice.")
+                                }
+                            }
+                        },
                         modifier = Modifier.weight(1f)
                     )
                     ActionButtonItem(
@@ -486,8 +524,14 @@ fun InvoiceDetailScreen(
                         isPrimary = false,
                         isDestructive = true,
                         onClick = {
-                            showDemoToast(context, "Invoice deleted")
-                            onNavigateBack()
+                            coroutineScope.launch {
+                                try {
+                                    FirestoreDataRepository.deleteInvoice(invoice.id)
+                                    onNavigateBack()
+                                } catch (exception: Exception) {
+                                    showDemoToast(context, exception.localizedMessage ?: "Unable to delete invoice.")
+                                }
+                            }
                         },
                         modifier = Modifier.weight(1f)
                     )
@@ -502,13 +546,18 @@ fun InvoiceDetailScreen(
                 balanceDue = balanceDue,
                 sheetState = sheetState,
                 onDismissRequest = { showPaymentSheet = false },
-                onPaymentSaved = { amount, _ ->
-                    paidAmount = (paidAmount + amount).coerceAtMost(invoice.grandTotal)
-                    if (paidAmount >= invoice.grandTotal) {
-                        status = InvoiceStatus.PAID
-                    } else if (paidAmount > 0) {
-                        status = InvoiceStatus.HALF_PAID
-                    }
+                onPaymentSaved = { amount, method, reference ->
+                    FirestoreDataRepository.recordPayment(
+                        invoice.id,
+                        PaymentRecord(
+                            id = "payment_${System.currentTimeMillis()}",
+                            amount = amount,
+                            date = ReportDateUtils.displayDate(ReportDateUtils.currentDate()),
+                            method = method,
+                            reference = reference,
+                            notes = ""
+                        )
+                    )
                 }
             )
         }
@@ -542,27 +591,23 @@ private fun ActionButtonItem(
     }
 }
 
-/**
- * Reusable record-payment bottom sheet.
- * If you already have this in another file, DELETE this one
- * to avoid duplicate symbol errors.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RecordPaymentBottomSheet(
     balanceDue: Double,
     sheetState: SheetState,
     onDismissRequest: () -> Unit,
-    onPaymentSaved: (amount: Double, method: String) -> Unit
+    onPaymentSaved: suspend (amount: Double, method: String, reference: String) -> Unit
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var amountStr by remember {
-        mutableStateOf(
-            if (balanceDue > 0) balanceDue.toInt().toString() else ""
-        )
+        mutableStateOf(if (balanceDue > 0) balanceDue.toString() else "")
     }
     var selectedMethod by remember { mutableStateOf("Bank") }
     var reference by remember { mutableStateOf("") }
+    var isSavingPayment by remember { mutableStateOf(false) }
+    var paymentError by remember { mutableStateOf("") }
     val methods = listOf("Cash", "Bank", "UPI", "Card", "Other")
 
     ModalBottomSheet(
@@ -585,9 +630,9 @@ private fun RecordPaymentBottomSheet(
 
             WavesTextField(
                 value = amountStr,
-                onValueChange = { amountStr = it },
+                onValueChange = { amountStr = it; paymentError = "" },
                 label = "Amount",
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
             )
 
             Column {
@@ -609,17 +654,14 @@ private fun RecordPaymentBottomSheet(
                                 .weight(1f)
                                 .height(40.dp)
                                 .clip(RoundedCornerShape(20.dp))
-                                .background(
-                                    if (selected) EmeraldInk else SurfaceColor
-                                )
+                                .background(if (selected) EmeraldInk else SurfaceColor)
                                 .clickable { selectedMethod = method },
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 method,
                                 fontSize = 12.sp,
-                                fontWeight = if (selected) FontWeight.Bold
-                                else FontWeight.Normal,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                                 color = if (selected) OnPrimary else TextSecondary
                             )
                         }
@@ -632,17 +674,32 @@ private fun RecordPaymentBottomSheet(
                 onValueChange = { reference = it },
                 label = "Reference / Txn ID"
             )
+            if (paymentError.isNotBlank()) {
+                Text(paymentError, color = DangerRed, fontSize = 13.sp)
+            }
 
             WavesPrimaryButton(
-                text = "SAVE PAYMENT",
+                text = if (isSavingPayment) "SAVING..." else "SAVE PAYMENT",
                 onClick = {
-                    val amount = amountStr.toDoubleOrNull() ?: 0.0
-                    if (amount > 0.0) {
-                        onPaymentSaved(amount, selectedMethod)
-                        showDemoToast(context, "Payment saved")
-                        onDismissRequest()
-                    } else {
-                        showDemoToast(context, "Enter a valid amount")
+                    val amount = amountStr.toDoubleOrNull()
+                    if (amount == null || amount <= 0.0) {
+                        paymentError = "Enter a payment amount greater than zero."
+                    } else if (!isSavingPayment) {
+                        coroutineScope.launch {
+                            isSavingPayment = true
+                            paymentError = ""
+                            try {
+                                onPaymentSaved(amount, selectedMethod, reference)
+                                showDemoToast(context, "Payment saved")
+                                onDismissRequest()
+                            } catch (exception: CancellationException) {
+                                throw exception
+                            } catch (exception: Exception) {
+                                paymentError = exception.localizedMessage ?: "Unable to save payment."
+                            } finally {
+                                isSavingPayment = false
+                            }
+                        }
                     }
                 }
             )
