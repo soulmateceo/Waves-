@@ -3,7 +3,7 @@
 ## App and Firebase identity
 
 - Android application ID / Play Console package: `com.waves.androidapp`
-- Current release version: `1.2` (`versionCode` 3; use a code greater than every version previously uploaded to any Play track)
+- Current release version: `1.2` (`versionCode` 3; the next Play release must use a code greater than 3 and greater than any code already used on any track)
 - Firebase Android app: `1:1088277592046:android:1fccb895b44a59bd6f80ff`
 - Firebase configuration: `app/google-services.json`
 - Android Gradle namespace remains `com.example`; it is separate from the installed application ID and keeps existing source packages stable.
@@ -21,21 +21,21 @@
 - Minimum SDK: 24
 - JDK: 21
 
-The Kotlin Compose plugin replaces the old `kotlinCompilerExtensionVersion` setting. Do not restore a `composeOptions` compiler version while using Kotlin 2.1.0.
+Gradle must run on JDK 21 for the current Kotlin Gradle DSL/toolchain. App source and Kotlin bytecode target Java 17; this is distinct from the JDK used to run Gradle. Robolectric tests configured for SDK 36 also require JDK 21.
 
 ## Signing keys
 
-The release signing configuration in `app/build.gradle.kts` uses:
+The release signing configuration in `app/build.gradle.kts` reads:
 
-- Keystore: `my-upload-key.jks` in the repository root by default, or the path in `KEYSTORE_PATH`
+- Keystore: `credentials/my-upload-key.jks` when `KEYSTORE_PATH` is set for the documented build; otherwise `my-upload-key.jks` in the repository root
 - Key alias: `upload`
-- Environment variables: `STORE_PASSWORD` and `KEY_PASSWORD`
-- Local-only credential copies and `signing.env`: `credentials/` (ignored by Git)
+- Environment variables sourced from `credentials/signing.env`: `STORE_PASSWORD` and `KEY_PASSWORD`
+- Local-only credential files: `credentials/` (ignored by Git)
 - Public upload certificate: [`upload_certificate.pem`](upload_certificate.pem)
 
-The ignored local bundle contains `credentials/my-upload-key.jks`, `credentials/debug.keystore`, `credentials/upload_certificate.pem`, `credentials/google-services.json`, `credentials/sha-fingerprints.txt`, and `credentials/signing.env`. The active Firebase configuration remains `app/google-services.json`.
+The ignored local credentials directory contains `credentials/my-upload-key.jks`, `credentials/debug.keystore`, `credentials/upload_certificate.pem`, `credentials/google-services.json`, `credentials/sha-fingerprints.txt`, and `credentials/signing.env`. The active Firebase configuration remains `app/google-services.json`. The signing environment file contains passwords; never print it or paste its contents into a terminal transcript, issue, chat, or source file.
 
-The private upload keystore, debug keystore, and local credential copies are excluded by `.gitignore`. Never commit, email, or publish the private keystore or its passwords. Keep encrypted backups of the upload key and store its passwords in a password manager. The supplied password values are stored only in the ignored local file `credentials/signing.env`; they are not recorded in this document or Git.
+The private upload keystore, debug keystore, and local credential copies are excluded by `.gitignore`. Never commit, email, or publish the private keystore or its passwords. Keep encrypted backups of the upload key and store its passwords in a password manager. On a new build machine, provision `credentials/my-upload-key.jks` and `credentials/signing.env` from the team's approved encrypted secret storage; do not generate a replacement key for an existing Play app. Restrict local access, for example with `chmod 600 credentials/signing.env credentials/my-upload-key.jks`.
 
 SHA-1 fingerprints:
 
@@ -46,29 +46,69 @@ SHA-1 fingerprints:
 
 Register the upload certificate fingerprint where required by Firebase/Google services. Google Play App Signing uses a separate app-signing key after enrollment; use the fingerprints shown in Play Console for production app-signing identity and API integrations.
 
-## Build release artifacts
+## Build signed release APK and AAB
 
-Load signing values from the ignored local credentials file; do not print or paste the values:
+The current release configuration is `versionName = "1.2"` and `versionCode = 3` in `app/build.gradle.kts`. Increment the code before each Play upload, and first confirm it is greater than every code already used in Play Console. The repository cannot query Play Console's track history.
+
+The following is the command used to produce the current release in this workspace. It explicitly selects JDK 21, uses the ignored upload-key files, and limits Gradle to one worker with a 1 GiB heap because the default parallel build caused its daemon to be terminated in this Codespace. Adjust `JAVA_HOME` if JDK 21 is installed elsewhere. Never add password values to the command itself:
 
 ```bash
 set -a
 . credentials/signing.env
 set +a
 export KEYSTORE_PATH="$PWD/credentials/my-upload-key.jks"
-./gradlew :app:assembleRelease :app:bundleRelease
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+export PATH="$JAVA_HOME/bin:$PATH"
+
+./gradlew :app:assembleRelease :app:bundleRelease \
+  --no-daemon \
+  --max-workers=1 \
+  --no-configuration-cache \
+  -Dorg.gradle.jvmargs='-Xmx1024m -XX:MaxMetaspaceSize=512m -Dfile.encoding=UTF-8'
+
 unset STORE_PASSWORD KEY_PASSWORD
 ```
+
+The build runs release Kotlin compilation, release lint (`lintVitalRelease`), APK packaging/signing, and AAB packaging/signing. A successful build ends with `BUILD SUCCESSFUL`. Routine warnings about deprecated APIs or native libraries that cannot be stripped did not prevent this release from building.
 
 Expected outputs:
 
 - APK: `app/build/outputs/apk/release/app-release.apk`
 - Android App Bundle: `app/build/outputs/bundle/release/app-release.aab`
 
-Artifacts under `app/build/outputs/` are local build outputs and are not committed.
+Artifacts under `app/build/outputs/` are local build outputs and are not committed. For the current version 1.2 build:
+
+- Package: `com.waves.androidapp`
+- Version code/name: `3` / `1.2`
+- Minimum / target SDK: `24` / `36`
+- APK SHA-256: `f2e8e3cc9dbc1c757c66d2adc3aa053c9028c4160628cceb4f5d58489c6de386`
+- AAB SHA-256: `8e0bbf0d37323b2d51401b1911f3fb8e61ad7941bdb4e1eaba6bbb8963063024`
+
+### Verify the release files
+
+Run verification after the build and before uploading. Android SDK Build Tools 36.0.0 provides `apksigner`:
+
+```bash
+APK=app/build/outputs/apk/release/app-release.apk
+AAB=app/build/outputs/bundle/release/app-release.aab
+
+aapt dump badging "$APK" | grep -E '^package:|^targetSdkVersion:'
+apksigner verify --print-certs "$APK"
+jarsigner -verify "$AAB"
+sha256sum "$APK" "$AAB"
+```
+
+Also validate the AAB structure using Google's standalone bundletool (the current release was validated with bundletool 1.18.0):
+
+```bash
+java -jar bundletool-all-1.18.0.jar validate --bundle="$AAB"
+```
+
+The APK and AAB should show package `com.waves.androidapp`, version code `3`, version name `1.2`, target API 36, and the release upload certificate fingerprints listed above. APK signing is checked with `apksigner`; AAB signing is checked with `jarsigner`; bundletool validates bundle structure. Keep the output files private until ready to distribute.
 
 ## Firebase Backend
 
-The Firebase CLI project is `waves-64217` in `.firebaserc`. Email/Password authentication is enabled by the `auth.providers.emailPassword` setting in `firebase.json`. Verification and password-reset emails currently use Firebase's built-in email delivery. Custom SMTP is not configured yet.
+The Firebase CLI project is `waves-64217` in `.firebaserc`. Email/Password authentication is enabled by the `auth.providers.emailPassword` setting in `firebase.json`. Verification and password-reset emails use Firebase's built-in email delivery. Account-deletion OTP messages use the deployed Firebase Functions and Resend; the Resend API key and sender address are Firebase Secret Manager secrets, not local signing credentials.
 
 Business data is scoped to the authenticated user's UID:
 
