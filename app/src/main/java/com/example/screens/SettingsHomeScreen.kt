@@ -19,17 +19,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
-import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Assessment
-import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.Policy
-import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarRate
@@ -65,10 +61,9 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsHomeScreen(
-    onNavigateToBusinessProfile: () -> Unit,
-    onNavigateToTaxSettings: () -> Unit,
-    onNavigateToBankSettings: () -> Unit,
-    onNavigateToProducts: () -> Unit,
+    onNavigateToPrefixNumbering: () -> Unit,
+    onNavigateToCurrency: () -> Unit,
+    onNavigateToPaymentTerms: () -> Unit,
     onNavigateToReports: () -> Unit,
     onNavigateToDeleteAccount: () -> Unit,
     onNavigateToLogIn: () -> Unit,
@@ -102,36 +97,6 @@ fun SettingsHomeScreen(
         ) {
             Spacer(modifier = Modifier.height(4.dp))
 
-            // BUSINESS SECTION
-            SectionHeader(title = "BUSINESS")
-            WavesCard {
-                Column {
-                    SettingsRowItem(
-                        icon = Icons.Filled.Business,
-                        label = "Business Profile",
-                        onClick = onNavigateToBusinessProfile
-                    )
-                    HorizontalDivider(color = BorderGray)
-                    SettingsRowItem(
-                        icon = Icons.Filled.Receipt,
-                        label = "Tax Settings",
-                        onClick = onNavigateToTaxSettings
-                    )
-                    HorizontalDivider(color = BorderGray)
-                    SettingsRowItem(
-                        icon = Icons.Filled.AccountBalance,
-                        label = "Bank Account",
-                        onClick = onNavigateToBankSettings
-                    )
-                    HorizontalDivider(color = BorderGray)
-                    SettingsRowItem(
-                        icon = Icons.Filled.Inventory2,
-                        label = "Products & Services",
-                        onClick = onNavigateToProducts
-                    )
-                }
-            }
-
             // INVOICE DEFAULTS SECTION
             SectionHeader(title = "INVOICE DEFAULTS")
             WavesCard {
@@ -139,28 +104,19 @@ fun SettingsHomeScreen(
                     SettingsRowItem(
                         icon = Icons.Filled.Tag,
                         label = "Prefix & Numbering",
-                        subtitle = "INV- / 005",
-                        onClick = onNavigateToBusinessProfile
+                        onClick = onNavigateToPrefixNumbering
                     )
                     HorizontalDivider(color = BorderGray)
                     SettingsRowItem(
                         icon = Icons.Filled.MonetizationOn,
                         label = "Currency",
-                        subtitle = "INR (₹)",
-                        onClick = onNavigateToBusinessProfile
+                        onClick = onNavigateToCurrency
                     )
                     HorizontalDivider(color = BorderGray)
                     SettingsRowItem(
                         icon = Icons.Filled.Schedule,
                         label = "Payment Terms",
-                        subtitle = "Net 15 Days",
-                        onClick = onNavigateToBusinessProfile
-                    )
-                    HorizontalDivider(color = BorderGray)
-                    SettingsRowItem(
-                        icon = Icons.Filled.Assessment,
-                        label = "Reports & Analytics",
-                        onClick = onNavigateToReports
+                        onClick = onNavigateToPaymentTerms
                     )
                 }
             }
@@ -217,10 +173,16 @@ fun SettingsHomeScreen(
             WavesCard {
                 Column {
                     SettingsRowItem(
+                        icon = Icons.Filled.Assessment,
+                        label = "Reports & Analytics",
+                        onClick = onNavigateToReports
+                    )
+                    HorizontalDivider(color = BorderGray)
+                    SettingsRowItem(
                         icon = Icons.Filled.Star,
-                        label = "Remove Ads (₹99)",
+                        label = "Remove Ads",
                         subtitle = "One-time purchase",
-                        onClick = { showDemoToast(context, "Payment gateway demo — ₹99") }
+                        onClick = { showDemoToast(context, "In-app purchase is not available yet.") }
                     )
                     HorizontalDivider(color = BorderGray)
                     SettingsRowItem(

@@ -26,6 +26,8 @@ import com.example.screens.DeleteAccountReasonScreen
 import com.example.screens.EmailVerificationScreen
 import com.example.screens.ForgotPasswordScreen
 import com.example.screens.InvoiceDetailScreen
+import com.example.screens.InvoiceDefaultSetting
+import com.example.screens.InvoiceDefaultSettingsScreen
 import com.example.screens.InvoiceListScreen
 import com.example.screens.InvoicePreviewScreen
 import com.example.screens.LandingScreen
@@ -62,6 +64,9 @@ object WavesDestinations {
     const val REPORTS = "reports"
     const val TAX_SETTINGS = "tax_settings"
     const val BANK_SETTINGS = "bank_settings"
+    const val INVOICE_PREFIX_SETTINGS = "invoice_prefix_settings"
+    const val INVOICE_CURRENCY_SETTINGS = "invoice_currency_settings"
+    const val INVOICE_PAYMENT_TERMS_SETTINGS = "invoice_payment_terms_settings"
     const val DELETE_ACCOUNT_REASON = "delete_account_reason"
     const val DELETE_ACCOUNT_OTP = "delete_account_otp"
 }
@@ -256,10 +261,9 @@ fun WavesNavGraph(
 
         composable(WavesDestinations.SETTINGS) {
             SettingsHomeScreen(
-                onNavigateToBusinessProfile = { navController.navigate(WavesDestinations.BUSINESS_PROFILE) },
-                onNavigateToTaxSettings = { navController.navigate(WavesDestinations.TAX_SETTINGS) },
-                onNavigateToBankSettings = { navController.navigate(WavesDestinations.BANK_SETTINGS) },
-                onNavigateToProducts = { navController.navigate(WavesDestinations.PRODUCTS) },
+                onNavigateToPrefixNumbering = { navController.navigate(WavesDestinations.INVOICE_PREFIX_SETTINGS) },
+                onNavigateToCurrency = { navController.navigate(WavesDestinations.INVOICE_CURRENCY_SETTINGS) },
+                onNavigateToPaymentTerms = { navController.navigate(WavesDestinations.INVOICE_PAYMENT_TERMS_SETTINGS) },
                 onNavigateToReports = { navController.navigate(WavesDestinations.REPORTS) },
                 onNavigateToDeleteAccount = { navController.navigate(WavesDestinations.DELETE_ACCOUNT_REASON) },
                 onNavigateToLogIn = {
@@ -274,6 +278,27 @@ fun WavesNavGraph(
 
         composable(WavesDestinations.BUSINESS_PROFILE) {
             BusinessProfileScreen(
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(WavesDestinations.INVOICE_PREFIX_SETTINGS) {
+            InvoiceDefaultSettingsScreen(
+                setting = InvoiceDefaultSetting.PREFIX_NUMBERING,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(WavesDestinations.INVOICE_CURRENCY_SETTINGS) {
+            InvoiceDefaultSettingsScreen(
+                setting = InvoiceDefaultSetting.CURRENCY,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(WavesDestinations.INVOICE_PAYMENT_TERMS_SETTINGS) {
+            InvoiceDefaultSettingsScreen(
+                setting = InvoiceDefaultSetting.PAYMENT_TERMS,
                 onNavigateBack = { navController.popBackStack() }
             )
         }

@@ -33,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,6 +55,8 @@ import com.example.components.StateType
 import com.example.components.showDemoToast
 import com.example.data.FirestoreDataRepository
 import com.example.data.FirestoreState
+import com.example.data.BusinessProfile
+import com.example.data.InvoiceDisplayFormat
 import com.example.data.Invoice
 import com.example.data.InvoiceStatus
 import com.example.data.ReportDateUtils
@@ -63,6 +66,7 @@ import com.example.ui.theme.EmeraldInk
 import com.example.ui.theme.OnPrimary
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import kotlinx.coroutines.delay
 
 @Composable
 fun DashboardScreen(
@@ -78,19 +82,39 @@ fun DashboardScreen(
     val context = LocalContext.current
     val invoiceState by remember { FirestoreDataRepository.observeInvoices() }
         .collectAsState(initial = FirestoreState.Loading)
-    if (invoiceState is FirestoreState.Loading) {
+    val businessState by remember { FirestoreDataRepository.observeBusinessProfile() }
+        .collectAsState(initial = FirestoreState.Loading)
+    if (invoiceState is FirestoreState.Loading || businessState is FirestoreState.Loading) {
         StateScreen(type = StateType.LOADING, message = "Loading dashboard...")
         return
     }
-    if (invoiceState is FirestoreState.Failure) {
+    if (invoiceState is FirestoreState.Failure || businessState is FirestoreState.Failure) {
+        val error = (invoiceState as? FirestoreState.Failure)?.message
+            ?: (businessState as? FirestoreState.Failure)?.message
+            ?: "Unable to load dashboard data."
         StateScreen(
             type = StateType.ERROR,
             title = "Dashboard Error",
-            message = (invoiceState as FirestoreState.Failure).message
+            message = error
         )
         return
     }
     val invoices = ((invoiceState as? FirestoreState.Data<*>)?.value as? List<Invoice>).orEmpty()
+    val business = (businessState as? FirestoreState.Data<*>)?.value as? BusinessProfile
+        ?: run {
+            StateScreen(
+                type = StateType.ERROR,
+                title = "Dashboard Error",
+                message = "Business settings are unavailable."
+            )
+            return
+        }
+    val greeting by produceState(initialValue = InvoiceDisplayFormat.greeting()) {
+        while (true) {
+            value = InvoiceDisplayFormat.greeting()
+            delay(60_000)
+        }
+    }
     val userName = com.example.data.FirebaseAuthRepository.currentUser?.displayName
         ?.takeIf(String::isNotBlank)
         ?: com.example.data.FirebaseAuthRepository.currentUser?.email?.substringBefore("@")
@@ -154,7 +178,7 @@ fun DashboardScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Good morning, $userName",
+                text = "$greeting, $userName",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary
@@ -234,7 +258,7 @@ fun DashboardScreen(
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = formatCurrency(revenueThisMonth),
+                            text = InvoiceDisplayFormat.formatCurrency(revenueThisMonth, business.country),
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary
@@ -330,7 +354,7 @@ fun DashboardScreen(
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = formatCurrency(invoice.grandTotal),
+                                text = InvoiceDisplayFormat.formatCurrency(invoice.grandTotal, business.country),
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = TextPrimary
@@ -349,8 +373,6 @@ fun DashboardScreen(
         }
     }
 }
-
-private fun formatCurrency(amount: Double) = "₹%,.0f".format(amount)
 
 @Composable
 private fun QuickActionChip(
